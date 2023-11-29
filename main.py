@@ -1,9 +1,11 @@
+import logging
+
 from icecream import ic
 from pyglet import gl
 
 from common_imports import *
 from machine import Agent
-from material import Box
+from stage import WallGenerator
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -16,7 +18,7 @@ total_frames = 60
 logger.debug(f"width: {window_width}, height: {window_height}, frames: {total_frames}")
 window = pyg.window.Window(width=window_width, height=window_height, fullscreen=False)
 fps_display = pyg.window.FPSDisplay(window=window)
-gl.glClearColor(1.0, 1.0, 1.0, .4)
+gl.glClearColor(.31, .08, .08, 1.0)
 
 """ Sprite Sheet """
 agent_idle = Path.cwd() / "assets" / "sprite" / "bot" / "bot.png"
@@ -32,10 +34,11 @@ sprite = pyg.sprite.Sprite(texture_grid[0])
 logging.debug(f"Agent: sheet-width {sprite_sheet.width}, frame-height {sprite_sheet.height}")
 logging.debug(f"Agent: frame-width {frame_width}, frame-height {frame_height}")
 
-speed = 200
+DEFAULT_SPEED = 200
+speed = DEFAULT_SPEED
 """ Starting Position """
-agent_pos_x = window_width // 2 - frame_width // 2
-agent_pos_y = window_height // 2 - frame_height // 2
+agent_pos_x = 32
+agent_pos_y = 32
 
 # TODO: Create boundary box function
 
@@ -45,27 +48,48 @@ wall_image = pyg.image.load(wall_filepath)
 box_batch = pyg.graphics.Batch()
 box_sprites = []
 
-# bottom layer
-for i in range(50):
-    x, y = i * 32, 0
-    box_sprites.append(pyg.sprite.Sprite(wall_image, x, y, batch=box_batch))
+wall = WallGenerator(wall_image, window_height, window_width, batch=box_batch)
 
-# top left layer
-for i in range(50):
-    x, y = 0, i * 32
-    box_sprites.append(pyg.sprite.Sprite(wall_image, x, y, batch=box_batch))
+for i in np.arange(32, 768 // 2, step=32):
+    wall.generate_box(window.width // 2, y=i, batch=box_batch)
 
-# top layer
-for i in range(50):
-    x, y = i * 32, window_height - 32
-    box_sprites.append(pyg.sprite.Sprite(wall_image, x, y, batch=box_batch))
+for i in np.arange(768 // 2 + 32, 768, step=32):
+    wall.generate_box(window.width // 2, y=i, batch=box_batch)
 
-# right layer
-for i in range(50):
-    x, y = window_width - 32, i * 32
-    box_sprites.append(pyg.sprite.Sprite(wall_image, x, y, batch=box_batch))
+for i in np.arange(window_width // 4, step=32):
+    wall.generate_box(x=i, y=window_height // 4, batch=box_batch)
+
+for i in np.arange(window_width // 4, step=32):
+    wall.generate_box(x=i, y=window_height // 4, batch=box_batch)
+
+for i in np.arange(window_height // 4, window_height // 2, step=32):
+    wall.generate_box(x=window_width // 4, y=i, batch=box_batch)
+
+for i in np.arange(32 * 14, 768, step=32):
+    wall.generate_box(x=window_width // 4, y=i, batch=box_batch)
+
+for i in np.arange(32, window_width // 4 - 32, step=32):
+    wall.generate_box(x=i, y=32 * 11, batch=box_batch)
+
+for i in np.arange(32, window_width // 4 - 32, step=32):
+    wall.generate_box(x=i, y=32 * 18, batch=box_batch)
 
 # TODO: Create door class (blit or destroy when key is in inventory.)
+
+door_filepath = Path.cwd() / "assets" / "sprite" / "door" / "door.png"
+door_image = pyg.image.load(door_filepath)
+door_batch = []
+
+
+class Door(pyg.sprite.Sprite):
+
+    def __init__(self, image, x, y):
+        super().__init__(image, x, y)
+        self.image = image
+
+
+door = Door(door_image, x=32 * 7, y=32 * 11)
+
 # TODO: Create key/key card class
 """ Agent Initialized """
 agent = Agent(texture_grid, agent_pos_x, agent_pos_y, speed)
@@ -87,8 +111,8 @@ def update(dt):
 
     agent.update(dt)
 
-    for x in box_sprites:
-        if check_collision(agent, x):
+    for boxes in wall.box_sprites:
+        if check_collision(agent, boxes):
             agent.x = agent.prev_x
             agent.y = agent.prev_y
 
@@ -103,6 +127,7 @@ def on_draw():
     fps_display.draw()
     agent.draw()
     box_batch.draw()
+    door.draw()
 
 
 @window.event
@@ -121,6 +146,17 @@ def on_key_press(symbol, modifiers):
 
         case key.D:
             agent.move('right', True)
+
+        case key.V:
+            ic(agent.x, agent.y)
+        # case key.F:
+        #     agent.speed += 32
+        #
+        # case key.R:
+        #     agent.speed -= 32
+        #
+        # case key.G:
+        #     agent.speed = DEFAULT_SPEED
 
 
 @window.event
