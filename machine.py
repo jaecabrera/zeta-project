@@ -3,6 +3,28 @@ from pyglet.window.key import KeyStateHandler
 from common_imports import *
 
 
+class Item:
+
+    def __init__(self, name, description):
+        self.name = name
+        self.description = description
+
+
+class Inventory:
+    def __init__(self):
+        self.items = []
+
+    def check_items(self):
+        return [i for i in self.items]
+
+    def add_item(self, item: Item):
+        self.items.append(item)
+
+    def remove_item(self, item: Item):
+        if item.description in self.items:
+            self.items.remove(item)
+
+
 @dataclass
 class MovementManager:
     left: bool = False
@@ -30,6 +52,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.current_frame = 0
         self.speed = spd
         self.key = KeyStateHandler()
+        self.inventory = Inventory()
 
     def update(self, dt):
 
