@@ -32,6 +32,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.speed = spd
         self.key = KeyStateHandler()
         self.inventory = Inventory()
+        self.spawn_position = x, y
 
     def update(self, dt):
 
@@ -52,3 +53,6 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         if self.down:
             self.y -= self.speed * dt
             self.current_frame = (self.current_frame + 1) % len(self.sprite_grid)
+
+    def die(self):
+        self.x, self.y = self.spawn_position
