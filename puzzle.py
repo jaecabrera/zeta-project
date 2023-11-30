@@ -1,7 +1,8 @@
+from typing import Literal, Union, Optional
+
 import pyglet.image
 
 from common_imports import *
-from typing import Literal, Union, Optional
 
 
 @dataclass(repr=True)
@@ -29,4 +30,16 @@ class PuzzleObject(pyg.sprite.Sprite):
                  y: Union[int, float],
                  puzzle_data: PuzzleData):
         self.data = puzzle_data
+
         super().__init__(self.data.image, x, y, batch=self.data.batch)
+
+
+@dataclass(slots=True)
+class DoorData(PuzzleData):
+
+    def __init__(self, pos_points):
+        super().__init__()
+        self.points: list[tuple] = pos_points
+
+    def respawn(self):
+        ...

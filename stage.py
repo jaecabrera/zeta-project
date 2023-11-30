@@ -1,5 +1,6 @@
-import pyglet.window
 from typing import Literal
+
+import pyglet.window
 
 from common_imports import *
 from puzzle import PuzzleData, PuzzleObject
@@ -56,6 +57,7 @@ def set_stage(wall: WallGenerator, window: pyglet.window.Window, box_batch: pygl
     """
     if structure == 'stage_1':
 
+        # columns
         for i in np.arange(32, 768 // 2, step=32):
             wall.generate_box(window.width // 2, y=i, batch=box_batch)
 
@@ -71,6 +73,11 @@ def set_stage(wall: WallGenerator, window: pyglet.window.Window, box_batch: pygl
         for i in np.arange(window.height // 4, window.height // 2, step=32):
             wall.generate_box(x=window.width // 4, y=i, batch=box_batch)
 
+        for i in np.arange(64, 32 * 6, step=32):
+            wall.generate_box(x=window.width // 4, y=i, batch=box_batch)
+
+        # rows
+
         for i in np.arange(32 * 14, 768, step=32):
             wall.generate_box(x=window.width // 4, y=i, batch=box_batch)
 
@@ -80,14 +87,30 @@ def set_stage(wall: WallGenerator, window: pyglet.window.Window, box_batch: pygl
         for i in np.arange(32, window.width // 4 - 32, step=32):
             wall.generate_box(x=i, y=32 * 18, batch=box_batch)
 
+        for i in np.arange(32 * 9, 32 * 12, step=32):
+            wall.generate_box(x=i, y=32 * 7, batch=box_batch)
 
-def set_objects() -> dict:
-    return {'door': create_doors(),
-            'shroom': create_shroom(),
-            'trap': create_traps()}
+        for i in np.arange(32 * 13, 32 * 17, step=32):
+            wall.generate_box(x=i, y=32 * 7, batch=box_batch)
+
+        for i in np.arange(32 * 9, 32 * 12, step=32):
+            wall.generate_box(x=i, y=32 * 7, batch=box_batch)
+
+        for i in np.arange(32 * 10, 32 * 17, step=32):
+            wall.generate_box(x=i, y=32 * 11, batch=box_batch)
+
+        for i in np.arange(32 * 9, 32 * 17, step=32):
+            wall.generate_box(x=i, y=32 * 14, batch=box_batch)
+
+
+def set_objects():
+    create_doors()
+    create_shroom()
+    create_traps()
 
 
 def create_doors():
+    """ Sets """
     door_blue_filepath = Path.cwd() / "assets" / "sprite" / "door" / "door_blue.png"
 
     blue_door_image = pyg.image.load(door_blue_filepath)
