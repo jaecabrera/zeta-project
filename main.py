@@ -1,11 +1,10 @@
-import pyglet.graphics
 from icecream import ic
 from pyglet import gl
 
 from common_imports import *
-from machine import Agent
-from stage import WallGenerator
-from item_data import red_key, blue_key
+from agent import Agent
+from stage import WallGenerator, set_stage
+from puzzle import PuzzleData, PuzzleObject
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -49,112 +48,55 @@ wall_image = pyg.image.load(wall_filepath)
 box_batch = pyg.graphics.Batch()
 box_sprites = []
 wall = WallGenerator(wall_image, window_height, window_width, batch=box_batch)
+set_stage(wall, window, box_batch, structure='stage_1')
 
+# Doors
 
-def set_stage():
-    for i in np.arange(32, 768 // 2, step=32):
-        wall.generate_box(window.width // 2, y=i, batch=box_batch)
-
-    for i in np.arange(768 // 2 + 32, 768, step=32):
-        wall.generate_box(window.width // 2, y=i, batch=box_batch)
-
-    for i in np.arange(window_width // 4, step=32):
-        wall.generate_box(x=i, y=window_height // 4, batch=box_batch)
-
-    for i in np.arange(window_width // 4, step=32):
-        wall.generate_box(x=i, y=window_height // 4, batch=box_batch)
-
-    for i in np.arange(window_height // 4, window_height // 2, step=32):
-        wall.generate_box(x=window_width // 4, y=i, batch=box_batch)
-
-    for i in np.arange(32 * 14, 768, step=32):
-        wall.generate_box(x=window_width // 4, y=i, batch=box_batch)
-
-    for i in np.arange(32, window_width // 4 - 32, step=32):
-        wall.generate_box(x=i, y=32 * 11, batch=box_batch)
-
-    for i in np.arange(32, window_width // 4 - 32, step=32):
-        wall.generate_box(x=i, y=32 * 18, batch=box_batch)
-
-
-set_stage()
-
-# TODO: Create door class (blit or destroy when key is in inventory.)
-""" Door Stage """
-
-
-class Door(pyg.sprite.Sprite):
-
-    def __init__(self, image, door_color):
-        super().__init__(image)
-        self.image = image
-        self.door_color = door_color
-
-    def generate_doors(self, x, y, door_list, batch) -> None:
-        door_list.append(pyg.sprite.Sprite(self.image, x, y, batch=batch))
-
-
-door_filepath = Path.cwd() / "assets" / "sprite" / "door" / "door.png"
+# create blue doors - puzzle data
 door_blue_filepath = Path.cwd() / "assets" / "sprite" / "door" / "door_blue.png"
+blue_door_image = pyg.image.load(door_blue_filepath)
+blue_door_pos: list[tuple] = [(32 * 16, 32 * 12)]
+blue_door_data = PuzzleData(puzzle_type="door", ref_color="blue", image=blue_door_image)
+blue_door_data.create_batch()
+blue_door_list = [PuzzleObject(x, y, blue_door_data) for x, y in blue_door_pos]
 
-# door image and door sprite
-red_door_image = pyg.image.load(door_filepath)  # Red
-blue_door_image = pyg.image.load(door_blue_filepath)  # Blue
-
-red_door = Door(red_door_image, door_color='red')
-blue_door = Door(blue_door_image, door_color='blue')
-
-# door batch and door pos
-door_batch = pyglet.graphics.Batch()
-door_list = []
+# create red doors - puzzle data
+red_door_filepath = Path.cwd() / "assets" / "sprite" / "door" / "door.png"
+red_door_image = pyg.image.load(red_door_filepath)
 red_door_pos: list[tuple] = [
     (32 * 7, 32 * 11),
-    (32 * 7, 32 * 18),
-    (32 * 16, 32 * 12)
+    (32 * 7, 32 * 18)
 ]
+red_door_data = PuzzleData(puzzle_type="door", ref_color="red", image=red_door_image)
+red_door_data.create_batch()
+red_door_list = [PuzzleObject(x, y, red_door_data) for x, y in red_door_pos]
 
-blue_door_pos: list[tuple] = [
-    (32 * 16, 32 * 12)
-]
+# Mushrooms
 
-for x_pos, y_pos in red_door_pos:
-    red_door.generate_doors(x_pos, y_pos, door_list, door_batch)
-
-for x_pos, y_pos in blue_door_pos:
-    blue_door.generate_doors(x_pos, y_pos, door_list, door_batch)
-
-""" Mushroom / Key Object """
-
-
-class Mushroom(pyg.sprite.Sprite):
-
-    def __init__(self, image, x, y, mush_color):
-        super().__init__(image)
-        self.image = image
-        self.x = x
-        self.y = y
-
-
-# filepaths
 red_shroom_fp = Path.cwd() / "assets" / "sprite" / "shroom" / "red_mush.png"
+red_shroom_image = pyg.image.load(red_shroom_fp)
+red_shroom_pos: list[tuple] = [(82, 472), (82, 280)]
+red_shroom_data = PuzzleData(puzzle_type="key", ref_color="red", image=red_shroom_image)
+red_shroom_data.create_batch()
+red_shroom_list = [PuzzleObject(x, y, red_shroom_data) for x, y in red_shroom_pos]
+
 blue_shroom_fp = Path.cwd() / "assets" / "sprite" / "shroom" / "blue_mush.png"
-
-# door image and door sprite
-red_shroom_image = pyg.image.load(red_shroom_fp)  # Red
-blue_shroom_image = pyg.image.load(blue_shroom_fp)  # Blue
-
-red_shroom = Mushroom(red_shroom_image, x=82, y=472, mush_color='red')
-blue_shroom = Mushroom(blue_shroom_image, x=76, y=668, mush_color='blue')
-
-# mushroom batch and door pos
-mush_list = [red_shroom, blue_shroom]
-
+blue_shroom_image = pyg.image.load(blue_shroom_fp)
+blue_shroom_pos: list[tuple] = [(76, 668)]
+blue_shroom_data = PuzzleData(puzzle_type="key", ref_color="blue", image=blue_shroom_image)
+blue_shroom_data.create_batch()
+blue_shroom_list = [PuzzleObject(x, y, blue_shroom_data) for x, y in blue_shroom_pos]
 
 """ Agent Initialized """
 agent = Agent(texture_grid, agent_pos_x, agent_pos_y, speed)
 
 
 def check_collision(sprite1, sprite2):
+    """
+    Basic collision detection based on sprite dimensions.
+    :param sprite1: Sprite A
+    :param sprite2: Sprite B
+    """
     return (
             sprite1.x < sprite2.x + sprite2.width and
             sprite1.x + sprite1.width > sprite2.x and
@@ -164,32 +106,53 @@ def check_collision(sprite1, sprite2):
 
 
 def update(dt):
+    # set agent previous x, y pos before agent update
     agent.prev_x = agent.x
     agent.prev_y = agent.y
 
     agent.update(dt)
 
     for boxes in wall.box_sprites:
+        "Agent bump into box by reverting agent pos to previous pos."
         if check_collision(agent, boxes):
             agent.x = agent.prev_x
             agent.y = agent.prev_y
 
-    for mush in mush_list:
-        if check_collision(agent, mush):
+    for r_shroom in red_shroom_list:
+        "Red shroom / key is added to inventory when agent collides with shroom"
+        if check_collision(agent, r_shroom):
+            red_shroom_list.remove(r_shroom)
+            agent.inventory.add_red()
 
-            if mush.mush_color == 'red':
-                agent.inventory.add_item(red_key)
+    for b_shroom in blue_shroom_list:
+        "Blue shroom / key is added to inventory when agent collides with shroom"
+        if check_collision(agent, b_shroom):
+            blue_shroom_list.remove(b_shroom)
+            agent.inventory.add_blue()
 
-            if mush.mush_color == 'blue':
-                agent.inventory.add_item(blue_key)
+    for r_door in red_door_list:
+        "Check if agent has a red key, if true then removes red door and deducts red total key."
+        if agent.inventory.red_key != 0:
 
-            ic(agent.inventory.check_items())
+            if check_collision(agent, r_door):
+                red_door_list.remove(r_door)
+                agent.inventory.minus_red()
 
-    # for door in door_list:
-    #     if check_collision(agent, door):
-    #         agent.x = agent.prev_x
-    #         agent.y = agent.prev_y
-    #         # door_list.remove(door)
+        elif check_collision(agent, r_door):
+            agent.x = agent.prev_x
+            agent.y = agent.prev_y
+
+    for b_door in blue_door_list:
+        "Check if agent has a blue key, if true then removes blue door and deducts blue total key."
+        if agent.inventory.blue_key != 0:
+
+            if check_collision(agent, b_door):
+                blue_door_list.remove(b_door)
+                agent.inventory.minus_blue()
+
+        elif check_collision(agent, b_door):
+            agent.x = agent.prev_x
+            agent.y = agent.prev_y
 
 
 # Schedule the update function to be called regularly
@@ -199,17 +162,17 @@ pyg.clock.schedule_interval(update, 1 / 60.0)
 @window.event
 def on_draw():
     window.clear()
-    red_shroom.draw()
-    blue_shroom.draw()
+    red_shroom_data.batch.draw()
+    blue_shroom_data.batch.draw()
     agent.draw()
     box_batch.draw()
-    door_batch.draw()
+    red_door_data.batch.draw()
+    blue_door_data.batch.draw()
     fps_display.draw()
 
 
 @window.event
 def on_key_press(symbol, modifiers):
-    # ic(agent.x, agent.y, wall.x, wall.y)
     match symbol:
 
         case key.W:
@@ -226,6 +189,7 @@ def on_key_press(symbol, modifiers):
 
         case key.V:
             ic(agent.x, agent.y)
+
         case key.F:
             agent.speed += 32
 
@@ -234,6 +198,9 @@ def on_key_press(symbol, modifiers):
 
         case key.G:
             agent.speed = DEFAULT_SPEED
+
+        case key.M:
+            ic(agent.inventory.blue_key, agent.inventory.red_key)
 
 
 @window.event
@@ -255,13 +222,5 @@ def on_key_release(symbol, modifiers):
     agent.current_frame = 0
 
 
-@window.event
-def on_mouse_press(x, y, button, modifiers):
-    match button:
-        case mouse.LEFT:
-            print('left button press')
-        case mouse.RIGHT:
-            print('right button press')
-
-
-pyg.app.run()
+if __name__ == '__main__':
+    pyg.app.run()
