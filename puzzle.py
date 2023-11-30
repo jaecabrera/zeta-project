@@ -7,8 +7,8 @@ from typing import Literal, Union, Optional
 @dataclass(repr=True)
 class PuzzleData:
     """Class for representing puzzle data."""
-    puzzle_type: Literal['key', 'door']
-    ref_color: Literal['blue', 'red']
+    puzzle_type: Literal['key', 'door', 'trap']
+    ref_color: Literal['blue', 'red', 'None']
     image: pyglet.image.AbstractImage
     _batch: Optional[pyglet.graphics.Batch] = None
 

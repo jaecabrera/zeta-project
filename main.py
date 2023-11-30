@@ -1,23 +1,18 @@
 from icecream import ic
-from pyglet import gl
 
 from common_imports import *
 from agent import Agent
 from stage import WallGenerator, set_stage
 from puzzle import PuzzleData, PuzzleObject
+from settings import *
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+window_width = WINDOW_WIDTH
+window_height = WINDOW_HEIGHT
+total_frames = TOTAL_FRAMES
+speed = DEFAULT_SPEED
 
-""" Window 1024 x 768 """
-window_width = 1024
-window_height = 768
-total_frames = 60
-
-logger.debug(f"width: {window_width}, height: {window_height}, frames: {total_frames}")
 window = pyg.window.Window(width=window_width, height=window_height, fullscreen=False)
 fps_display = pyg.window.FPSDisplay(window=window)
-gl.glClearColor(.31, .08, .08, 1.0)
 
 """ Sprite Sheet """
 agent_idle = Path.cwd() / "assets" / "sprite" / "bot" / "bot.png"
@@ -32,10 +27,6 @@ sprite = pyg.sprite.Sprite(texture_grid[0])
 
 logging.debug(f"Agent: sheet-width {sprite_sheet.width}, frame-height {sprite_sheet.height}")
 logging.debug(f"Agent: frame-width {frame_width}, frame-height {frame_height}")
-
-""" Speed Params """
-DEFAULT_SPEED = 200
-speed = DEFAULT_SPEED
 
 """ Starting Position """
 agent_pos_x = 32
@@ -87,6 +78,16 @@ blue_shroom_data = PuzzleData(puzzle_type="key", ref_color="blue", image=blue_sh
 blue_shroom_data.create_batch()
 blue_shroom_list = [PuzzleObject(x, y, blue_shroom_data) for x, y in blue_shroom_pos]
 
+# trap
+trap_sprite_fp = Path.cwd() / "assets" / "sprite" / "trap" / "spike.png"
+trap_image = pyg.image.load(trap_sprite_fp)
+trap_pos: list[tuple] = [(PIXEL * i, 190) for i in np.arange(9, 12, step=1)]
+[trap_pos.append((PIXEL * x, 190)) for x in np.arange(13, 16, step=1)]
+
+trap_data = PuzzleData(puzzle_type="trap", ref_color="None", image=trap_image)
+trap_data.create_batch()
+trap_list = [PuzzleObject(x, y, trap_data) for x, y in trap_pos]
+
 """ Agent Initialized """
 agent = Agent(texture_grid, agent_pos_x, agent_pos_y, speed)
 
@@ -117,6 +118,10 @@ def update(dt):
         if check_collision(agent, boxes):
             agent.x = agent.prev_x
             agent.y = agent.prev_y
+
+    for traps in trap_list:
+        if check_collision(agent, traps):
+            agent.die()
 
     for r_shroom in red_shroom_list:
         "Red shroom / key is added to inventory when agent collides with shroom"
@@ -164,10 +169,12 @@ def on_draw():
     window.clear()
     red_shroom_data.batch.draw()
     blue_shroom_data.batch.draw()
+    trap_data.batch.draw()
     agent.draw()
     box_batch.draw()
     red_door_data.batch.draw()
     blue_door_data.batch.draw()
+    trap_data.batch.draw()
     fps_display.draw()
 
 
@@ -176,16 +183,16 @@ def on_key_press(symbol, modifiers):
     match symbol:
 
         case key.W:
-            agent.move('up', True)
+            agent.move(direction='up', state=True)
 
         case key.A:
-            agent.move('left', True)
+            agent.move(direction='left', state=True)
 
         case key.S:
-            agent.move('down', True)
+            agent.move(direction='down', state=True)
 
         case key.D:
-            agent.move('right', True)
+            agent.move(direction='right', state=True)
 
         case key.V:
             ic(agent.x, agent.y)
