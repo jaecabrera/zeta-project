@@ -1,18 +1,21 @@
+import pyglet.image
 from icecream import ic
 
-from common_imports import *
 from agent import Agent
-from stage import WallGenerator, set_stage
+from common_imports import *
 from puzzle import PuzzleData, PuzzleObject
 from settings import *
+from stage import WallGenerator, set_stage, set_objects
 
 window_width = WINDOW_WIDTH
 window_height = WINDOW_HEIGHT
 total_frames = TOTAL_FRAMES
 speed = DEFAULT_SPEED
 
-window = pyg.window.Window(width=window_width, height=window_height, fullscreen=False)
+window = pyg.window.Window(width=window_width, height=window_height, fullscreen=FULLSCREEN)
 fps_display = pyg.window.FPSDisplay(window=window)
+background_path = Path.cwd() / "assets" / "background" / "game_bg.png"
+background_image = pyg.image.load(background_path)
 
 """ Sprite Sheet """
 agent_idle = Path.cwd() / "assets" / "sprite" / "bot" / "bot.png"
@@ -41,12 +44,19 @@ box_sprites = []
 wall = WallGenerator(wall_image, window_height, window_width, batch=box_batch)
 set_stage(wall, window, box_batch, structure='stage_1')
 
+# ---------------------------- GAME OBJECTS --------------------------------------------
+stage_object = set_objects()
+
+
 # Doors
+def respawn_objects(pos: list[tuple], data: PuzzleData, object_list: list[PuzzleObject]):
+    object_list += [PuzzleObject(x, y, data) for x, y in pos]
+
 
 # create blue doors - puzzle data
 door_blue_filepath = Path.cwd() / "assets" / "sprite" / "door" / "door_blue.png"
 blue_door_image = pyg.image.load(door_blue_filepath)
-blue_door_pos: list[tuple] = [(32 * 16, 32 * 12)]
+blue_door_pos: list[tuple] = [(32 * 16, 32 * 12), (32 * 8, 32)]
 blue_door_data = PuzzleData(puzzle_type="door", ref_color="blue", image=blue_door_image)
 blue_door_data.create_batch()
 blue_door_list = [PuzzleObject(x, y, blue_door_data) for x, y in blue_door_pos]
@@ -73,7 +83,7 @@ red_shroom_list = [PuzzleObject(x, y, red_shroom_data) for x, y in red_shroom_po
 
 blue_shroom_fp = Path.cwd() / "assets" / "sprite" / "shroom" / "blue_mush.png"
 blue_shroom_image = pyg.image.load(blue_shroom_fp)
-blue_shroom_pos: list[tuple] = [(76, 668)]
+blue_shroom_pos: list[tuple] = [(76, 668), (182, 98)]
 blue_shroom_data = PuzzleData(puzzle_type="key", ref_color="blue", image=blue_shroom_image)
 blue_shroom_data.create_batch()
 blue_shroom_list = [PuzzleObject(x, y, blue_shroom_data) for x, y in blue_shroom_pos]
@@ -83,6 +93,7 @@ trap_sprite_fp = Path.cwd() / "assets" / "sprite" / "trap" / "spike.png"
 trap_image = pyg.image.load(trap_sprite_fp)
 trap_pos: list[tuple] = [(PIXEL * i, 190) for i in np.arange(9, 12, step=1)]
 [trap_pos.append((PIXEL * x, 190)) for x in np.arange(13, 16, step=1)]
+[trap_pos.append((PIXEL * x, PIXEL * 9)) for x in np.arange(9, 15, step=1)]
 
 trap_data = PuzzleData(puzzle_type="trap", ref_color="None", image=trap_image)
 trap_data.create_batch()
@@ -90,6 +101,31 @@ trap_list = [PuzzleObject(x, y, trap_data) for x, y in trap_pos]
 
 """ Agent Initialized """
 agent = Agent(texture_grid, agent_pos_x, agent_pos_y, speed)
+
+# flag
+flag_filepath = Path.cwd() / "assets" / "sprite" / "finish_flag" / "flag.png"
+flag_sheet = pyg.image.load(flag_filepath)
+num_rows = 1
+num_cols = 6
+# frame_width = flag_sheet.width // num_cols
+# frame_height = flag_sheet.height // num_rows
+flag_animation = pyg.image.ImageGrid(flag_sheet, num_rows, num_cols)
+texture_grid = pyg.image.TextureGrid(flag_animation)
+flag_animation_frames = [pyglet.image.AnimationFrame(img, 0.1) for img in flag_animation]
+
+# Create an Animation from the frames
+flag_animation = pyglet.image.Animation(flag_animation_frames)
+
+# Create a Sprite using the Animation
+flag_sprite = pyglet.sprite.Sprite(flag_animation, 570, 396)
+
+inventory_label = pyglet.text.Label(
+    text=f'Red: {0} Blue: {0}',
+    x=window_width - 50,
+    y=window.height - 50,
+    anchor_x='right',
+    anchor_y='center',
+)
 
 
 def check_collision(sprite1, sprite2):
@@ -112,7 +148,12 @@ def update(dt):
     agent.prev_y = agent.y
 
     agent.update(dt)
+    inventory_red, inventory_blue = agent.inventory.red_key, agent.inventory.blue_key
 
+    def update_inventory_count():
+        inventory_label.text = f'Red: {inventory_red} Blue: {inventory_blue}'
+
+    update_inventory_count()
     for boxes in wall.box_sprites:
         "Agent bump into box by reverting agent pos to previous pos."
         if check_collision(agent, boxes):
@@ -121,7 +162,17 @@ def update(dt):
 
     for traps in trap_list:
         if check_collision(agent, traps):
-            agent.die()
+            agent.death()
+
+            blue_door_list.clear()
+            red_door_list.clear()
+            red_shroom_list.clear()
+            blue_shroom_list.clear()
+
+            respawn_objects(blue_door_pos, blue_door_data, blue_door_list)
+            respawn_objects(red_door_pos, red_door_data, red_door_list)
+            respawn_objects(red_shroom_pos, red_shroom_data, red_shroom_list)
+            respawn_objects(blue_shroom_pos, blue_shroom_data, blue_shroom_list)
 
     for r_shroom in red_shroom_list:
         "Red shroom / key is added to inventory when agent collides with shroom"
@@ -159,14 +210,36 @@ def update(dt):
             agent.x = agent.prev_x
             agent.y = agent.prev_y
 
+    if check_collision(agent, flag_sprite):
+        agent.game_win()
+        agent.x, agent.y = agent.spawn_position
+
+        blue_door_list.clear()
+        red_door_list.clear()
+        red_shroom_list.clear()
+        blue_shroom_list.clear()
+
+        respawn_objects(blue_door_pos, blue_door_data, blue_door_list)
+        respawn_objects(red_door_pos, red_door_data, red_door_list)
+        respawn_objects(red_shroom_pos, red_shroom_data, red_shroom_list)
+        respawn_objects(blue_shroom_pos, blue_shroom_data, blue_shroom_list)
+
 
 # Schedule the update function to be called regularly
 pyg.clock.schedule_interval(update, 1 / 60.0)
 
 
+def update_inventory_count(item_count):
+    global inventory_red
+    global inventory_blue
+    inventory_label.text = f'Red: {inventory_red} Blue: {inventory_blue}'
+
+
 @window.event
 def on_draw():
     window.clear()
+    background_image.blit(0, 0)
+    flag_sprite.draw()
     red_shroom_data.batch.draw()
     blue_shroom_data.batch.draw()
     trap_data.batch.draw()
@@ -175,6 +248,7 @@ def on_draw():
     red_door_data.batch.draw()
     blue_door_data.batch.draw()
     trap_data.batch.draw()
+    inventory_label.draw()
     fps_display.draw()
 
 
