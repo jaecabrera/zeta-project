@@ -1,6 +1,6 @@
 from dataclasses import field
 
-from common_imports import *
+from util.common_imports import *
 
 
 @dataclass(slots=True, init=False)
@@ -14,7 +14,7 @@ class ImageManager:
         self.load_rel_path()
 
     def load_rel_path(self):
-        self.image_relative_path = {k: Path.cwd() / 'sprite' / v for k, v in self.image_environment.items()}
+        self.image_relative_path = {k: Path.cwd() / 'assets' / 'sprite' / v for k, v in self.image_environment.items()}
 
     def load_pyglet_images(self):
         self.pyglet_images = {k: pyg.image.load(v) for k, v in self.image_relative_path.items()}
