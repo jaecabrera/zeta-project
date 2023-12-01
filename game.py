@@ -1,18 +1,23 @@
+import json
 from dataclasses import field
 import configparser
 import pyglet.image
-from sprite_variables import *
+# from sprite_variables import *
 from util.images import ImageManager
+from util.puzzle import PuzzleData, PUZZLE_DATA, PuzzleObject
 from util.specs import GameSpecs
+import pyglet as pyg
+from icecream import ic
 
 """ Wall & Stage """
+
 
 # wall_filepath = Path.cwd() / "assets" / "sprite" / "wall" / "crate.png"
 # wall_image = pyg.image.load(wall_filepath)
 #
 # box_batch = pyg.graphics.Batch()
 # box_sprites = []
-wall = WallGenerator(wall_image, WINDOW_HEIGHT, WINDOW_WIDTH, batch=box_batch)
+# wall = WallGenerator(wall_image, WINDOW_HEIGHT, WINDOW_WIDTH, batch=box_batch)
 
 
 #
@@ -290,21 +295,117 @@ wall = WallGenerator(wall_image, WINDOW_HEIGHT, WINDOW_WIDTH, batch=box_batch)
 
 class GoblinAI(pyg.window.Window):
 
-    def __init__(self, width: int, height: int, f_screen: bool, ai_params: dict, img_manager: ImageManager) -> None:
+    def __init__(self, width: int, height: int, f_screen: bool, ai_params: dict, img_manager: ImageManager,
+                 puzzle_data, stage) -> None:
         super().__init__(width, height, fullscreen=f_screen)
+        self.blue_door_list = []
+        self.red_door_list = []
+        self.red_mushroom_list = []
+        self.blue_mushroom_list = []
+        self.trap_list = []
+        self.box_list = []
+        self.loaded_puzzle_data = None
+        self.puzzle_blue_shroom = None
+        self.puzzle_red_shroom = None
+        self.puzzle_trap = None
+        self.puzzle_blue_door = None
+        self.puzzle_red_door = None
+        self.puzzle_crate = None
         self.image_manager = img_manager
         self.game_images = None
+        self.puzzle_data = puzzle_data
+        self.stage = stage
+        self.__post_init__()
 
         # self.agent = Agent(**ai_params)
 
     def __post_init__(self):
         self.retrieve_pyglet_images()
+        self.make_puzzle_data(self.puzzle_data)
+        self.place_puzzle_objects(self.stage)
 
     def retrieve_pyglet_images(self):
         self.game_images = self.image_manager.pyglet_images
 
+    def make_puzzle_data(self, puzzle_data: dict):
+
+        puzzle_data.get('b').image = self.image_manager.pyglet_images.get('crate_image')
+        self.puzzle_crate = puzzle_data.get('b')
+        self.puzzle_crate.create_batch()
+
+        puzzle_data.get('rd').image = self.image_manager.pyglet_images.get('door_red_image')
+        self.puzzle_red_door = puzzle_data.get('rd')
+        self.puzzle_red_door.create_batch()
+
+        puzzle_data.get('bd').image = self.image_manager.pyglet_images.get('door_blue_image')
+        self.puzzle_blue_door = puzzle_data.get('bd')
+        self.puzzle_blue_door.create_batch()
+
+        puzzle_data.get('sp').image = self.image_manager.pyglet_images.get('trap_image')
+        self.puzzle_trap = puzzle_data.get('sp')
+        self.puzzle_trap.create_batch()
+
+        puzzle_data.get('rs').image = self.image_manager.pyglet_images.get('mushroom_red_image')
+        self.puzzle_red_shroom = puzzle_data.get('rs')
+        self.puzzle_red_shroom.create_batch()
+
+        puzzle_data.get('bs').image = self.image_manager.pyglet_images.get('mushroom_blue_image')
+        self.puzzle_blue_shroom = puzzle_data.get('bs')
+        self.puzzle_blue_shroom.create_batch()
+
+        self.loaded_puzzle_data = [
+            self.puzzle_crate,
+            self.puzzle_red_door,
+            self.puzzle_blue_door,
+            self.puzzle_trap,
+            self.puzzle_red_shroom,
+            self.puzzle_blue_shroom
+        ]
+
+    def place_puzzle_objects(self, stage: dict):
+        for k in stage.keys():
+            stage.get(k)
+            tuple_stage_puzzle = [tuple(x) for x in stage.get(k)]
+
+            match k:
+                case 'b':
+                    for x, y in tuple_stage_puzzle:
+                        self.box_list.append(PuzzleObject(x, y, self.puzzle_crate))
+
+            match k:
+                case 'sp':
+                    for x, y in tuple_stage_puzzle:
+                        self.trap_list.append(PuzzleObject(x, y, self.puzzle_trap))
+
+            match k:
+                case 'bs':
+                    for x, y in tuple_stage_puzzle:
+                        self.blue_mushroom_list.append(PuzzleObject(x, y, self.puzzle_blue_shroom))
+
+            match k:
+                case 'rs':
+                    for x, y in tuple_stage_puzzle:
+                        self.red_mushroom_list.append(PuzzleObject(x, y, self.puzzle_red_shroom))
+
+            match k:
+                case 'rd':
+                    for x, y in tuple_stage_puzzle:
+                        self.red_door_list.append(PuzzleObject(x, y, self.puzzle_red_door))
+
+            match k:
+                case 'bd':
+                    for x, y in tuple_stage_puzzle:
+                        self.blue_door_list.append(PuzzleObject(x, y, self.puzzle_blue_door))
+
     def on_draw(self):
+
         self.clear()
+        self.puzzle_crate.batch.draw()
+        self.puzzle_trap.batch.draw()
+        self.puzzle_blue_shroom.batch.draw()
+        self.puzzle_red_shroom.batch.draw()
+        self.puzzle_red_door.batch.draw()
+        self.puzzle_blue_door.batch.draw()
 
     def on_key_press(self, symbol, modifiers):
         ...
@@ -314,6 +415,9 @@ class GoblinAI(pyg.window.Window):
 
 
 if __name__ == '__main__':
+    with open('puzzle_objects.json', 'r') as f:
+        STAGE_A = json.load(f)
+
     # Config
     config = configparser.ConfigParser()
     config.read('config.ini')
@@ -322,10 +426,14 @@ if __name__ == '__main__':
     # Game and Image Managers
     image_manager = ImageManager(relative_image_fp)
     game_params = GameSpecs()
+    image_manager.load_pyglet_images()
 
     game = GoblinAI(
         **game_params.get_window_params(),
         f_screen=False,
-        ai_params=dict())
+        ai_params=dict(),
+        img_manager=image_manager,
+        puzzle_data=PUZZLE_DATA,
+        stage=STAGE_A)
 
     pyglet.app.run()
