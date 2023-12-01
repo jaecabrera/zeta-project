@@ -32,14 +32,3 @@ class PuzzleObject(pyg.sprite.Sprite):
         self.data = puzzle_data
 
         super().__init__(self.data.image, x, y, batch=self.data.batch)
-
-
-@dataclass(slots=True)
-class DoorData(PuzzleData):
-
-    def __init__(self, pos_points):
-        super().__init__()
-        self.points: list[tuple] = pos_points
-
-    def respawn(self):
-        ...
