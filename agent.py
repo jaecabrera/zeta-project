@@ -1,6 +1,6 @@
 from pyglet.window.key import KeyStateHandler
 
-from common_imports import *
+from util.common_imports import *
 from inventory_system import Inventory
 
 
@@ -34,9 +34,20 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.inventory = Inventory()
         self.spawn_position = x, y
         self.win = 0
+        self.death = 0
+        self.reward = 0
+        self._frame_iteration = 0
 
     def game_win(self):
         self.win += 1
+
+    @property
+    def frame_iteration(self):
+        return self._frame_iteration
+
+    @frame_iteration.setter
+    def frame_iteration(self, value):
+        self._frame_iteration = value
 
     def update(self, dt):
 
@@ -58,5 +69,6 @@ class Agent(pyg.sprite.Sprite, MovementManager):
             self.y -= self.speed * dt
             self.current_frame = (self.current_frame + 1) % len(self.sprite_grid)
 
-    def death(self):
+    def die(self):
         self.x, self.y = self.spawn_position
+        self.death += 1
