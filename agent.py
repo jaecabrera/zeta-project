@@ -2,6 +2,11 @@ from pyglet.window.key import KeyStateHandler
 
 from util.common_imports import *
 from inventory_system import Inventory
+from model import Linear_QNet, QTrainer
+
+MAX_MEMORY = 100_000
+BATCH_SIZE = 1000
+LR = 0.001
 
 
 @dataclass
@@ -37,6 +42,10 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.death = 0
         self.reward = 0
         self._frame_iteration = 0
+        self.gamma = 0.9
+        # 11 game states , 3 actions
+        self.model = Linear_QNet(11, 256, 3)
+        self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def game_win(self):
         self.win += 1
@@ -51,7 +60,11 @@ class Agent(pyg.sprite.Sprite, MovementManager):
 
     def update(self, dt):
 
+        self.prev_x = self.x
+        self.prev_y = self.y
+
         self.image = self.sprite_grid[self.current_frame]
+        self.frame_iteration += dt
 
         if self.left:
             self.x -= self.speed * dt
@@ -72,3 +85,6 @@ class Agent(pyg.sprite.Sprite, MovementManager):
     def die(self):
         self.x, self.y = self.spawn_position
         self.death += 1
+        self.reward -= 10
+        self.inventory.red_key = 0
+        self.inventory.blue_key = 0
