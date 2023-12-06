@@ -1,14 +1,16 @@
-import json
 import configparser
+import json
+from pathlib import Path
+
+import pyglet as pyg
 import pyglet.image
+from icecream import ic
+from pyglet.window import key
 
 from agent import Agent
 from util.images import ImageManager
 from util.puzzle import PUZZLE_DATA, PuzzleObject
 from util.specs import GameSpecs
-import pyglet as pyg
-from pyglet.window import key
-from icecream import ic
 
 
 # TODO: create game win flag on: self.agent.x: 126.66783997416496, self.agent.y: 375.9084399426356
@@ -23,6 +25,7 @@ class GoblinAI(pyg.window.Window):
         self.blue_mushroom_list = []
         self.trap_list = []
         self.box_list = []
+        self.flag_finish = None
         self.loaded_puzzle_data = None
         self.puzzle_blue_shroom = None
         self.puzzle_red_shroom = None
@@ -117,6 +120,18 @@ class GoblinAI(pyg.window.Window):
                     for x, y in tuple_stage_puzzle:
                         self.blue_door_list.append(PuzzleObject(x, y, self.puzzle_blue_door))
 
+            flag_animated = self.set_flag()
+            self.flag_finish = pyglet.sprite.Sprite(flag_animated, 70, 350)
+
+    def set_flag(self):
+
+        flag_image = self.image_manager.pyglet_images.get('flag_image')
+        flag_image_animation = pyg.image.ImageGrid(flag_image, 1, 6)
+        flag_texture_grid = pyg.image.TextureGrid(flag_image_animation)
+        flag_animated = [pyglet.image.AnimationFrame(img, 0.1) for img in flag_texture_grid]
+        flag_image_obj = pyglet.image.Animation(flag_animated)
+        return flag_image_obj
+
     def make_game_stats_label(self):
         self.game_stats = pyglet.text.Label(
             text='',
@@ -130,6 +145,7 @@ class GoblinAI(pyg.window.Window):
 
         self.clear()
         self.agent.draw()
+        self.flag_finish.draw()
         self.game_stats.draw()
         self.puzzle_crate.batch.draw()
         self.puzzle_trap.batch.draw()
@@ -263,6 +279,11 @@ class GoblinAI(pyg.window.Window):
                 self.agent.x = self.agent.prev_x
                 self.agent.y = self.agent.prev_y
 
+        if self.check_collision(self.flag_finish):
+            self.agent.game_win()
+            self.agent.frame_iteration = 0
+            self.reset_stage()
+
 
 if __name__ == '__main__':
     with open('puzzle_objects.json', 'r') as f:
@@ -278,23 +299,15 @@ if __name__ == '__main__':
     game_params = GameSpecs()
     image_manager.load_pyglet_images()
 
-    from pathlib import Path
-
-    # TODO: Create AI Parameters for game (sprite + spawn position x, y)
-    agent_img_fp = Path.cwd() / "assets" / "sprite" / "bot" / "bot.png"
-    agent_sheet = pyg.image.load(agent_img_fp)
-    num_rows = 1
-    num_cols = 1
-    frame_width = agent_sheet.width // num_cols
-    frame_height = agent_sheet.height // num_rows
-    flag_animation = pyg.image.ImageGrid(agent_sheet, num_rows, num_cols)
-    texture_grid = pyg.image.TextureGrid(flag_animation)
+    agent_img_fp = Path.cwd() / "assets" / "sprite" / "bot" / "bot.gif"
+    animation = pyg.image.load_animation(agent_img_fp)
+    sprite = pyg.sprite.Sprite(animation)
 
     test_agent_params = {
-        'sprite_grid': texture_grid,
+        'sprite_grid': animation,
         'x': 64,
         'y': 64,
-        'spd': 200,
+        'spd': 120,
     }
 
     game = GoblinAI(
@@ -304,5 +317,6 @@ if __name__ == '__main__':
         img_manager=image_manager,
         puzzle_data=PUZZLE_DATA,
         stage=STAGE_A)
+
     pyg.clock.schedule_interval(game.update, 1 / 60.0)
     pyglet.app.run()
