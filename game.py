@@ -1,26 +1,20 @@
-import configparser
-import json
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Literal
 
 import numpy as np
 import pyglet as pyg
 import pyglet.image
 from icecream import ic
 from pyglet.window import key
-
 from agent import Agent
 from loader import STAGE_A, IMAGE_MANAGER, AGENT_PARAMS, GAME_SPECS
 from util.images import ImageManager
 from util.puzzle import PUZZLE_DATA, PuzzleObject
-from util.specs import GameSpecs
 
 
 @dataclass(slots=True, frozen=True)
 class ScoreRecords:
-    door: int
-    key: int
+    door_counts: int
+    key_counts: int
 
 
 # TODO: create a scoring system the shorter the duration the higher the score
@@ -47,6 +41,7 @@ class GoblinAI(pyg.window.Window):
         self.image_manager = img_manager
         self.game_images = None
         self.game_stats = None
+        self.game_score = None
         self.puzzle_data = puzzle_data
         self.stage = stage
         self.__post_init__()
@@ -59,6 +54,7 @@ class GoblinAI(pyg.window.Window):
         self.make_puzzle_data(self.puzzle_data)
         self.place_puzzle_objects(self.stage)
         self.make_game_stats_label()
+        self.store_total_puzzle_objects()
 
     def retrieve_pyglet_images(self):
         self.game_images = self.image_manager.pyglet_images
@@ -229,13 +225,10 @@ class GoblinAI(pyg.window.Window):
         if np.array_equal(action, [1, 0, 0, 0]):
             ...
 
-    def check_quantity_puzzle_objects(self) -> int:
+    def store_total_puzzle_objects(self) -> None:
         """
         Counts the remaining puzzle objects in stage such as keys, and doors. This function
         is a utility function for scoring.
-        :param obj_name: puzzle objects related to scoring ['key', 'door']
-        :return: puzzle object counts
-        :rtype int:
         """
 
         total_mushrooms: int
@@ -245,43 +238,95 @@ class GoblinAI(pyg.window.Window):
         total_doors = len(self.red_door_list) + len(self.blue_door_list)
         self.score_record = ScoreRecords(total_doors, total_mushrooms)
 
-    def run_score(self, dt) -> None:
-        # TODO: Insert here: Fix Scoring System, score growth should remain constant and not based on current score.
-        # example: Score: 100 * .125 += New Score, -> New Score * .125 -> Bigger New Score.
-        if self.agent.frame_iteration < 120:
-            stage_success_low_score = 300
+    def calculate_total_stage_score(self) -> None:
 
-        if self.agent.frame_iteration < 90:
-            stage_success_mid_score = 600
+        def get_total_puzzle_objects() -> tuple:
+            """Gets the total puzzle objects from a ScoreRecords Class or self.score_records"""
+            total_doors = self.score_record.door_counts
+            total_keys = self.score_record.key_counts
 
-        if self.agent.frame_iteration < 60:
-            stage_success_high_score = 1000
+            return total_doors, total_keys
 
-        # bonus scoring parameters
-        len(self.red_door_list)
+        def calculate_completion_score(total_puzzle_objects: tuple) -> int:
+            """
+            Get the difference in puzzle objects and uses a constant to weight
+            priority in scoring which is key > door.
+            :param total_puzzle_objects:
+            :return: returns the sum score of key and door.
+            :rtype int:
+            """
+            door_const = .1
+            key_const = .25
+
+            total_doors, total_keys = total_puzzle_objects
+            current_doors = len(self.red_door_list) + len(self.blue_door_list)
+            current_keys = len(self.red_mushroom_list) + len(self.blue_mushroom_list)
+
+            door_diff = current_doors - total_doors
+            key_diff = current_keys - total_keys
+            ic(door_diff)
+            ic(key_diff)
+            door_completion_score = np.sum([x * 100 * door_const for x in np.arange(np.abs(door_diff))])
+            key_completion_score = np.sum([x * 100 * key_const for x in np.arange(np.abs(key_diff))])
+            ic(door_completion_score)
+            ic(key_completion_score)
+            completion_score: int = int(door_completion_score) + int(key_completion_score)
+            ic(completion_score)
+            return completion_score
+
+        def calculate_game_score(stage_success_score: int | None) -> int:
+            # TODO: don't calculate completion score when agent died. Added agent state if stage is failure or success
+            total_puzzle_objects: tuple = get_total_puzzle_objects()
+            puzzle_completion_score = calculate_completion_score(total_puzzle_objects)
+            _game_score: int = stage_success_score + puzzle_completion_score
+            return _game_score
+
+        def get_success_score():
+            success_score: int = 0
+
+            if self.agent.frame_iteration > 35:
+                success_score += 300
+
+            elif (self.agent.frame_iteration < 35) | (self.agent.frame_iteration >= 24):
+                success_score += 600
+
+            elif self.agent.frame_iteration < 24:
+                success_score += 1000
+
+            return success_score
+
+        _success_score = get_success_score()
+        game_score = calculate_game_score(_success_score)
+        ic(_success_score)
+        self.game_score = game_score
+        ic(self.game_score)
+
+    def game_over(self):
+        # TODO: when game is over completion score should not be added as the player failed to complete the stage.
+        self.agent.die()
+        self.calculate_total_stage_score()
+        self.reset_stage()
+        self.agent.frame_iteration = 0
+        self.score = 0
 
     def update(self, dt):
         self.agent.update(dt)
-        self.run_score(dt)
         previous_reward = self.reward
         self.game_stats.text = f"""
         Red: {self.agent.inventory.red_key} Blue: {self.agent.inventory.blue_key} 
         Win: {self.agent.win} / Death: {self.agent.death}
-        Score: {self.score} / Reward: {self.reward} """
+        Score: {self.score} / Reward: {self.reward}
+        frame-iter: {self.agent.frame_iteration:0.2f}"""
 
         if (self.agent.frame_iteration >= 60) & (self.reward == 0):
             self.agent.die()
+            self.game_over()
             self.reward -= 10
-            self.score = 0
-            self.reset_stage()
-            self.agent.frame_iteration = 0
 
         if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
             self.agent.die()
-            self.score = 0
+            self.game_over()
             self.reward -= 10
-            self.reset_stage()
-            self.agent.frame_iteration = 0
 
         for crates in self.box_list:
             if self.check_collision(crates):
@@ -291,10 +336,8 @@ class GoblinAI(pyg.window.Window):
         for traps in self.trap_list:
             if self.check_collision(traps):
                 self.agent.die()
+                self.game_over()
                 self.reward -= 10
-                self.score = 0
-                self.agent.frame_iteration = 0
-                self.reset_stage()
 
         for r_shroom in self.red_mushroom_list:
             "Red shroom / key is added to inventory when agent collides with shroom"
@@ -344,9 +387,7 @@ class GoblinAI(pyg.window.Window):
 
         if self.check_collision(self.flag_finish):
             self.agent.game_win()
-            self.score = 0
-            self.agent.frame_iteration = 0
-            self.reset_stage()
+            self.game_over()
 
 
 if __name__ == '__main__':
