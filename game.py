@@ -1,24 +1,35 @@
 import configparser
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
+import numpy as np
 import pyglet as pyg
 import pyglet.image
 from icecream import ic
 from pyglet.window import key
 
 from agent import Agent
+from loader import STAGE_A, IMAGE_MANAGER, AGENT_PARAMS, GAME_SPECS
 from util.images import ImageManager
 from util.puzzle import PUZZLE_DATA, PuzzleObject
 from util.specs import GameSpecs
 
 
-# TODO: create game win flag on: self.agent.x: 126.66783997416496, self.agent.y: 375.9084399426356
+@dataclass(slots=True, frozen=True)
+class ScoreRecords:
+    door: int
+    key: int
+
+
+# TODO: create a scoring system the shorter the duration the higher the score
 class GoblinAI(pyg.window.Window):
 
     def __init__(self, width: int, height: int, f_screen: bool, ai_params: dict, img_manager: ImageManager,
                  puzzle_data, stage) -> None:
         super().__init__(width, height, fullscreen=f_screen)
+        self.score_record = None
         self.blue_door_list = []
         self.red_door_list = []
         self.red_mushroom_list = []
@@ -40,6 +51,8 @@ class GoblinAI(pyg.window.Window):
         self.stage = stage
         self.__post_init__()
         self.agent = Agent(**ai_params)
+        self.reward = 0
+        self.score = 0
 
     def __post_init__(self):
         self.retrieve_pyglet_images()
@@ -211,21 +224,62 @@ class GoblinAI(pyg.window.Window):
 
         self.place_puzzle_objects(self.stage)
 
+    def _move(self, action):
+
+        if np.array_equal(action, [1, 0, 0, 0]):
+            ...
+
+    def check_quantity_puzzle_objects(self) -> int:
+        """
+        Counts the remaining puzzle objects in stage such as keys, and doors. This function
+        is a utility function for scoring.
+        :param obj_name: puzzle objects related to scoring ['key', 'door']
+        :return: puzzle object counts
+        :rtype int:
+        """
+
+        total_mushrooms: int
+        total_doors: int
+
+        total_mushrooms = len(self.red_mushroom_list) + len(self.blue_mushroom_list)
+        total_doors = len(self.red_door_list) + len(self.blue_door_list)
+        self.score_record = ScoreRecords(total_doors, total_mushrooms)
+
+    def run_score(self, dt) -> None:
+        # TODO: Insert here: Fix Scoring System, score growth should remain constant and not based on current score.
+        # example: Score: 100 * .125 += New Score, -> New Score * .125 -> Bigger New Score.
+        if self.agent.frame_iteration < 120:
+            stage_success_low_score = 300
+
+        if self.agent.frame_iteration < 90:
+            stage_success_mid_score = 600
+
+        if self.agent.frame_iteration < 60:
+            stage_success_high_score = 1000
+
+        # bonus scoring parameters
+        len(self.red_door_list)
+
     def update(self, dt):
         self.agent.update(dt)
-        previous_reward = self.agent.reward
+        self.run_score(dt)
+        previous_reward = self.reward
         self.game_stats.text = f"""
         Red: {self.agent.inventory.red_key} Blue: {self.agent.inventory.blue_key} 
         Win: {self.agent.win} / Death: {self.agent.death}
-        frame-iter: {self.agent.frame_iteration:.0f} / Reward: {self.agent.reward} """
+        Score: {self.score} / Reward: {self.reward} """
 
-        if (self.agent.frame_iteration >= 60) & (self.agent.reward == 0):
+        if (self.agent.frame_iteration >= 60) & (self.reward == 0):
             self.agent.die()
+            self.reward -= 10
+            self.score = 0
             self.reset_stage()
             self.agent.frame_iteration = 0
 
-        if (self.agent.frame_iteration >= 60) & (self.agent.reward == previous_reward):
+        if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
             self.agent.die()
+            self.score = 0
+            self.reward -= 10
             self.reset_stage()
             self.agent.frame_iteration = 0
 
@@ -237,7 +291,8 @@ class GoblinAI(pyg.window.Window):
         for traps in self.trap_list:
             if self.check_collision(traps):
                 self.agent.die()
-                self.agent.reward -= 10
+                self.reward -= 10
+                self.score = 0
                 self.agent.frame_iteration = 0
                 self.reset_stage()
 
@@ -246,24 +301,29 @@ class GoblinAI(pyg.window.Window):
             if self.check_collision(r_shroom):
                 self.red_mushroom_list.remove(r_shroom)
                 self.agent.inventory.add_red()
-                self.agent.reward += 10
+                self.reward += 10
+                self.score += 50
 
         for b_shroom in self.blue_mushroom_list:
             "Blue shroom / key is added to inventory when agent collides with shroom"
             if self.check_collision(b_shroom):
+                self.reward += 10
+                self.score += 50
                 self.blue_mushroom_list.remove(b_shroom)
                 self.agent.inventory.add_blue()
-                self.agent.reward += 10
 
         for r_door in self.red_door_list:
             "Check if agent has a red key, if true then removes red door and deducts red total key."
             if self.agent.inventory.red_key != 0:
 
                 if self.check_collision(r_door):
+                    self.reward += 5
+                    self.score += 10
                     self.red_door_list.remove(r_door)
                     self.agent.inventory.minus_red()
 
             elif self.check_collision(r_door):
+                self.reward -= 1
                 self.agent.x = self.agent.prev_x
                 self.agent.y = self.agent.prev_y
 
@@ -272,49 +332,29 @@ class GoblinAI(pyg.window.Window):
             if self.agent.inventory.blue_key != 0:
 
                 if self.check_collision(b_door):
+                    self.reward += 5
+                    self.score += 10
                     self.blue_door_list.remove(b_door)
                     self.agent.inventory.minus_blue()
 
             elif self.check_collision(b_door):
+                self.reward -= 1
                 self.agent.x = self.agent.prev_x
                 self.agent.y = self.agent.prev_y
 
         if self.check_collision(self.flag_finish):
             self.agent.game_win()
+            self.score = 0
             self.agent.frame_iteration = 0
             self.reset_stage()
 
 
 if __name__ == '__main__':
-    with open('puzzle_objects.json', 'r') as f:
-        STAGE_A = json.load(f)
-
-    # Config
-    config = configparser.ConfigParser()
-    config.read('config.ini')
-    relative_image_fp = {k: config['PATHS'][v] for k, v in zip(config['PATHS'], config['PATHS'])}
-
-    # Game and Image Managers
-    image_manager = ImageManager(relative_image_fp)
-    game_params = GameSpecs()
-    image_manager.load_pyglet_images()
-
-    agent_img_fp = Path.cwd() / "assets" / "sprite" / "bot" / "bot.gif"
-    animation = pyg.image.load_animation(agent_img_fp)
-    sprite = pyg.sprite.Sprite(animation)
-
-    test_agent_params = {
-        'sprite_grid': animation,
-        'x': 64,
-        'y': 64,
-        'spd': 120,
-    }
-
     game = GoblinAI(
-        **game_params.get_window_params(),
+        **GAME_SPECS.get_window_params(),
         f_screen=False,
-        ai_params=test_agent_params,
-        img_manager=image_manager,
+        ai_params=AGENT_PARAMS,
+        img_manager=IMAGE_MANAGER,
         puzzle_data=PUZZLE_DATA,
         stage=STAGE_A)
 
