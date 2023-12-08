@@ -4,12 +4,11 @@ from enum import Enum
 import torch
 from pyglet.window.key import KeyStateHandler
 
+from game import CollisionState
 # from game import GoblinAI
 from inventory_system import Inventory
-from loader import GAME_SPECS, AGENT_PARAMS, IMAGE_MANAGER, STAGE_A
 from model import Linear_QNet, QTrainer
 from util.common_imports import *
-from util.puzzle import PUZZLE_DATA
 
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
@@ -31,9 +30,9 @@ class AgentState(Enum):
     collision_right = [1, 0, 0, 0]
     collision_top = [1, 0, 0, 0]
     collision_down = ...
-    spike_collision = ...
-    door_collision_unlocked = ...
-    door_collision_locked = ...
+    spike = ...
+    door_unlocked = ...
+    door_locked = ...
 
 
 @dataclass
@@ -59,6 +58,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
 
     def __init__(self, sprite_grid, x, y, spd):
         super(Agent, self).__init__(sprite_grid, x, y)
+        self.state = None
         self.sprite_grid = sprite_grid
         self.current_frame = 0
         self.speed = spd
@@ -76,19 +76,27 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
-    def get_state(self) -> list[int]:
-        # TODO: Insert assigned states here.
-        state = []
+    def get_state(self, col_state: CollisionState) -> None:
+        self.state = [
+            col_state.up,
+            col_state.down,
+            col_state.right,
+            col_state.down,
+            col_state.nearby_danger,
+            col_state.nearby_key,
+            col_state.nearby_door
+        ]
 
-    def get_action(self, state) -> pyg.window.key:
+    def get_action(self) -> pyg.window.key:
         self.epsilon = 80 - self.n_games
+
         movement_pattern = [0, 0, 0, 0]
 
         if np.random.randint(0, 200) < self.epsilon:
             move = np.random.randint(0, 3)
             movement_pattern[move] = 1
         else:
-            state0 = torch.tensor(state, dtype=torch.float)
+            state0 = torch.tensor(self.state, dtype=torch.float)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             movement_pattern[move] = 1
