@@ -1,101 +1,70 @@
-from typing import Literal
+import json
+import time
+from pathlib import Path
+from typing import Callable
 
-import pyglet.window
+import inquirer
+import pandas as pd
 
-from util.common_imports import *
-
-
-class WallGenerator:
-
-    def __init__(self, image, win_height, win_width, batch):
-        self.image = image
-        self.default_x = 0
-        self.default_y = 0
-        self.box_width = 32
-        self.box_sprites = list()
-        self.create_boundary_box(win_height, win_width, batch)
-
-    def generate_box(self, x, y, batch: pyglet.graphics.Batch) -> None:
-        """
-        Generates a 32x32 Sprite Box Object in the field which will be added
-        to the `box_batch` sprite batch.
-        :param batch: Pyglet Batch Object for drawing all wall in batch instead of individual sprite obj.
-        :param x: x-coordinate spawn position
-        :param y: y-coordinate spawn position
-        :return: None
-        """
-
-        self.box_sprites.append(pyg.sprite.Sprite(self.image, x, y, batch=batch))
-
-    def create_boundary_box(self, window_height, window_width, batch):
-
-        """ Boundary Box """
-        for i in np.arange(1024, step=self.box_width):
-            self.generate_box(i, 0, batch)
-
-        for i in np.arange(768, step=self.box_width):
-            self.generate_box(0, i, batch)
-
-        for i in np.arange(1024, step=self.box_width):
-            self.generate_box(i, window_height - 32, batch)
-
-        for i in np.arange(1024, step=self.box_width):
-            self.generate_box(window_width - 32, i, batch)
+PIXEL_FACTOR = 32
 
 
-def set_stage(wall: WallGenerator, window: pyglet.window.Window, box_batch: pyglet.graphics.Batch,
-              structure: Literal['stage_1']) -> None:
-    """
-    Sets the current stage for the game where stage is defined as the puzzle structure.
-    :param structure: Sets the structure stage level among the ff. ['stage-1', ...]
-    :param wall: Wall Object to be used for the stage
-    :param window: Pyglet Window  Object to be used as reference
-    :param box_batch: Pyglet Batch Object for drawing all wall in batch instead of individual sprite obj.
-    :return:
-    """
-    if structure == 'stage_1':
+def transform_col_by_code(col: str, c: str, raw_map: pd.DataFrame) -> list[tuple]:
+    to_tuple: Callable = lambda x: (x, int(col))
+    code_index = raw_map[raw_map.loc[:, col] == c][col].index
+    code_list = list(code_index)
+    tuple_code_list = [to_tuple(x) for x in code_list]
 
-        # columns
-        for i in np.arange(32, 768 // 2, step=32):
-            wall.generate_box(window.width // 2, y=i, batch=box_batch)
+    return tuple_code_list
 
-        for i in np.arange(768 // 2 + 32, 768, step=32):
-            wall.generate_box(window.width // 2, y=i, batch=box_batch)
 
-        for i in np.arange(window.width // 4, step=32):
-            wall.generate_box(x=i, y=window.height // 4, batch=box_batch)
+def multiply_by_pixel(transformed_code_list: list[tuple], px_factor: int) \
+        -> list[tuple]:
+    return [(x * px_factor, y * px_factor) for y, x in transformed_code_list]
 
-        for i in np.arange(window.width // 4, step=32):
-            wall.generate_box(x=i, y=window.height // 4, batch=box_batch)
 
-        for i in np.arange(window.height // 4, window.height // 2, step=32):
-            wall.generate_box(x=window.width // 4, y=i, batch=box_batch)
+def make_map(_map: pd.DataFrame):
+    puzzle_objects = {
+        'b': [],
+        'sp': [],
+        'bs': [],
+        'rs': [],
+        'rd': [],
+        'bd': [],
+    }
 
-        for i in np.arange(64, 32 * 6, step=32):
-            wall.generate_box(x=window.width // 4, y=i, batch=box_batch)
+    map_cols = _map.columns
+    _cols = list(map_cols)
+    _c = [k for k in puzzle_objects.keys()]
 
-        # rows
+    for c in _c:
+        for cols in _cols:
+            t = transform_col_by_code(cols, c, _map)
+            m = multiply_by_pixel(t, PIXEL_FACTOR)
+            for x, y in m:
+                puzzle_objects.get(c).append((x, y))
 
-        for i in np.arange(32 * 14, 768, step=32):
-            wall.generate_box(x=window.width // 4, y=i, batch=box_batch)
+    return puzzle_objects
 
-        for i in np.arange(32, window.width // 4 - 32, step=32):
-            wall.generate_box(x=i, y=32 * 11, batch=box_batch)
 
-        for i in np.arange(32, window.width // 4 - 32, step=32):
-            wall.generate_box(x=i, y=32 * 18, batch=box_batch)
+if __name__ == '__main__':
+    maps_dir = Path.cwd() / 'maps'
+    a = [x.name for x in maps_dir.iterdir() if x.name.endswith('.csv')]
 
-        for i in np.arange(32 * 9, 32 * 12, step=32):
-            wall.generate_box(x=i, y=32 * 7, batch=box_batch)
+    questions = [
+        inquirer.List('choice',
+                      message="What size do you need?",
+                      choices=a,
+                      ),
+    ]
+    answers = inquirer.prompt(questions)
+    load_choice = [x for x in maps_dir.iterdir() if x.name == answers.get('choice')]
+    loaded_map = pd.read_csv(load_choice[0])
+    json_file = make_map(loaded_map)
+    save_name = str.rstrip(answers.get('choice'), '.csv') + '.json'
 
-        for i in np.arange(32 * 13, 32 * 17, step=32):
-            wall.generate_box(x=i, y=32 * 7, batch=box_batch)
+    with open(maps_dir / save_name, 'w') as f:
+        json.dump(json_file, f)
 
-        for i in np.arange(32 * 9, 32 * 12, step=32):
-            wall.generate_box(x=i, y=32 * 7, batch=box_batch)
-
-        for i in np.arange(32 * 10, 32 * 17, step=32):
-            wall.generate_box(x=i, y=32 * 11, batch=box_batch)
-
-        for i in np.arange(32 * 9, 32 * 17, step=32):
-            wall.generate_box(x=i, y=32 * 14, batch=box_batch)
+    print(f"CSV map converted to json with name {save_name}")
+    time.sleep(.5)

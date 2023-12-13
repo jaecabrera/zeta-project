@@ -4,7 +4,8 @@ from enum import Enum
 import torch
 from pyglet.window.key import KeyStateHandler
 
-from game import CollisionState
+from game_state import CollisionState
+# from game import CollisionState
 # from game import GoblinAI
 from inventory_system import Inventory
 from model import Linear_QNet, QTrainer
