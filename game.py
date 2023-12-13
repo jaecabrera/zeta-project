@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pyglet as pyg
@@ -7,6 +7,7 @@ from icecream import ic
 from pyglet.window import key
 
 from agent import Agent
+from game_state import CollisionState
 from loader import STAGE_A, IMAGE_MANAGER, AGENT_PARAMS, GAME_SPECS
 from util.images import ImageManager
 from util.puzzle import PUZZLE_DATA, PuzzleObject
@@ -20,21 +21,10 @@ class ScoreRecords:
     key_counts: int
 
 
-@dataclass
-class CollisionState:
-    left: bool = field(default=False)
-    right: bool = field(default=False)
-    up: bool = field(default=False)
-    down: bool = field(default=False)
-    nearby_door: bool = field(default=False)
-    nearby_key: bool = field(default=False)
-    nearby_danger: bool = field(default=False)
-
-
 class GoblinAI(pyg.window.Window):
 
     def __init__(self, width: int, height: int, f_screen: bool, ai_params: dict, img_manager: ImageManager,
-                 puzzle_data, stage, state) -> None:
+                 puzzle_data, stage) -> None:
         super().__init__(width, height, fullscreen=f_screen)
         self.game_score_record = None
         self.blue_door_list = []
@@ -68,6 +58,14 @@ class GoblinAI(pyg.window.Window):
         self.place_puzzle_objects(self.stage)
         self.make_game_stats_label()
         self.store_total_puzzle_objects()
+
+    def get_door_list(self):
+        # NOTE
+        # using .extend adds up another instance of the same object in the list creating more pointer objects
+        # appending using '+' operator only evaluates either red doors or blue doors
+        door_list: list = self.red_door_list + self.blue_door_list
+
+        return door_list
 
     def retrieve_pyglet_images(self):
         self.game_images = self.image_manager.pyglet_images
@@ -193,6 +191,18 @@ class GoblinAI(pyg.window.Window):
 
             case key.V:
                 ic(self.agent.x, self.agent.y)
+
+            case key.B:
+                ic(self.state.nearby_door, self.state.nearby_key, self.state.nearby_danger)
+
+            case key.N:
+                ic(self.get_door_list())
+
+            case key.H:
+                ic('blue door')
+                for _doors in self.blue_door_list:
+                    self.state.update_state(self.agent, _doors, 'nearby_door')
+                    ic(self.state.nearby_door)
 
     def on_key_release(self, symbol, modifiers):
 
@@ -326,7 +336,7 @@ class GoblinAI(pyg.window.Window):
 
     def update(self, dt):
         global GAME_WIN
-
+        self.collision_state(self.agent)
         self.agent.update(dt)
         previous_reward = self.reward
         self.game_stats.text = f"""
@@ -335,15 +345,16 @@ class GoblinAI(pyg.window.Window):
         Score: {self.game_score} / Reward: {self.reward}
         Seconds: {self.agent.frame_iteration:0.2f}"""
 
-        if (self.agent.frame_iteration >= 60) & (self.reward == 0):
-            self.agent.die()
-            self.game_end()
-            self.reward -= 10
-
-        if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
-            self.agent.die()
-            self.game_end()
-            self.reward -= 10
+        # TODO: Frame-iteration uncomment after test.
+        # if (self.agent.frame_iteration >= 60) & (self.reward == 0):
+        #     self.agent.die()
+        #     self.game_end()
+        #     self.reward -= 10
+        #
+        # if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
+        #     self.agent.die()
+        #     self.game_end()
+        #     self.reward -= 10
 
         for crates in self.box_list:
             if self.check_collision(crates):
@@ -407,61 +418,83 @@ class GoblinAI(pyg.window.Window):
             self.agent.game_win()
             self.game_end()
 
-    def state(self):
+    def collision_state(self, agent):
         # TODO: update states that relies on object interaction
         # nearby attributes should have pixel padding between agent and object
         # on the other end box collisions will have (-) reward since we don't want our agent
         # to keep on colliding with the states. (can test w/o reward)
 
         # nearby constant
-        NEAR_CONSTANT: float = 20.0
+        NEAR_CONSTANT: float = 50.0
+        #
+        # a = [self.agent.x < _.x + _.width and
+        #      self.agent.x + self.agent.width > _.x and
+        #      self.agent.y < _.y + _.height and
+        #      self.agent.y + self.agent.height > _.y]
 
-        a = [self.agent.x < _.x + _.width and
-             self.agent.x + self.agent.width > _.x and
-             self.agent.y < _.y + _.height and
-             self.agent.y + self.agent.height > _.y]
+        # TODO: extending list will create duplicates of the mushroom the pointer used is the same with the whole game
+        # pointer and thus replacing keys.
 
         # keys in-game
-        key_list = self.red_mushroom_list
-        key_list.extend(self.blue_mushroom_list)
+        # key_list = self.red_mushroom_list.copy()
+        # key_list.extend(self.blue_mushroom_list.copy())
 
-        # doors in-game
-        door_list = self.red_door_list
-        door_list.extend(self.blue_door_list)
+        # # doors in-game
+        door_list = self.get_door_list()
+
+        # traps in-game
+        # trap_list = self.trap_list.copy()
 
         # TODO: Add try and except block if keys / doors do not exist anymore will not raise a value and make sure
         # that the state of non existing objects are `False`.
 
         # key referring to puzzle object key (mushrooms)
-        for _key in key_list:
-
-            # left
-            if _key.x - NEAR_CONSTANT < self.agent.x:
-                self.state.nearby_key = True
-            # right
-            if _key.x + NEAR_CONSTANT > self.agent.x:
-                self.state.nearby_key = True
-            # up
-            if _key.y < self.agent.y - NEAR_CONSTANT:
-                self.state.nearby_key = True
-            # down
-            if _key.y > self.agent.y + NEAR_CONSTANT:
-                self.state.nearby_key = True
+        # for _key in key_list:
+        #
+        #     # left
+        #     if _key.x - NEAR_CONSTANT < agent.x:
+        #         self.state.nearby_key = True
+        #     # right
+        #     if _key.x + NEAR_CONSTANT > agent.x:
+        #         self.state.nearby_key = True
+        #     # up
+        #     if _key.y < agent.y - NEAR_CONSTANT:
+        #         self.state.nearby_key = True
+        #     # down
+        #     if _key.y > agent.y + NEAR_CONSTANT:
+        #         self.state.nearby_key = True
+        #
+        #     else:
+        #         self.state.nearby_key = False
 
         for _door in door_list:
+            self.state.update_state(self.agent, _door, _state='nearby_door')
+        #
+        # for _key in key_list:
+        #     self.state.update_state(self.agent, _key, _state='nearby_key')
+        #     key_list.clear()
+        #
+        # for _trap in trap_list:
+        #     self.state.update_state(self.agent, _trap, _state='nearby_danger')
+        #     trap_list.clear()
 
-            # left
-            if _door.x - NEAR_CONSTANT < self.agent.x:
-                self.state.nearby_door = True
-            # right
-            if _door.x + NEAR_CONSTANT > self.agent.x:
-                self.state.nearby_door = True
-            # up
-            if _door.y < self.agent.y - NEAR_CONSTANT:
-                self.state.nearby_door = True
-            # down
-            if _door.y > self.agent.y + NEAR_CONSTANT:
-                self.state.nearby_door = True
+        # if self.state.nearby_danger:
+        #     ic(self.state.nearby_danger)
+
+        # for _trap in trap_list:
+        #
+        #     # left
+        #     if _trap.x - NEAR_CONSTANT < agent.x:
+        #         self.state.nearby_door = True
+        #     # right
+        #     if _trap.x + NEAR_CONSTANT > agent.x:
+        #         self.state.nearby_door = True
+        #     # up
+        #     if _trap.y < agent.y - NEAR_CONSTANT:
+        #         self.state.nearby_door = True
+        #     # down
+        #     if _trap.y > agent.y + NEAR_CONSTANT:
+        #         self.state.nearby_door = True
 
         # default_states = [self.state.up, self.state.down, self.state.right, self.state.down]
         # col_puzzle_states = [self.state.nearby_door, self.state.nearby_key, self.state.nearby_danger]

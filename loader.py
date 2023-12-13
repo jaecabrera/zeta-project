@@ -6,7 +6,7 @@ import pyglet as pyg
 from util.images import ImageManager
 from util.specs import GameSpecs
 
-with open('puzzle_objects.json', 'r') as f:
+with open('./maps/collision_test_stage.json', 'r') as f:
     STAGE_A = json.load(f)
 
 # Config
@@ -27,5 +27,5 @@ AGENT_PARAMS = {
     'sprite_grid': animation,
     'x': 64,
     'y': 64,
-    'spd': 120,
+    'spd': 250,
 }
