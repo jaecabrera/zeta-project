@@ -6,7 +6,7 @@ import pyglet as pyg
 from util.images import ImageManager
 from util.specs import GameSpecs
 
-with open('./maps/collision_test_stage.json', 'r') as f:
+with open('./maps/stage_a.json', 'r') as f:
     STAGE_A = json.load(f)
 
 # Config
