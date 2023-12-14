@@ -60,6 +60,7 @@ if __name__ == '__main__':
     answers = inquirer.prompt(questions)
     load_choice = [x for x in maps_dir.iterdir() if x.name == answers.get('choice')]
     loaded_map = pd.read_csv(load_choice[0])
+    loaded_map = loaded_map.set_index(loaded_map.columns[0])
     json_file = make_map(loaded_map)
     save_name = str.rstrip(answers.get('choice'), '.csv') + '.json'
 
