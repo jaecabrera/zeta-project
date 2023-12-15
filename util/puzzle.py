@@ -1,9 +1,10 @@
 import json
 from typing import Literal, Union, Optional
 
-import pyglet
 import pyglet.image
+import numpy as np
 
+from agent import Agent
 from util.common_imports import *
 
 
@@ -42,6 +43,23 @@ class PuzzleObject(pyg.sprite.Sprite):
         self.data = puzzle_data
 
         super().__init__(self.data.image, x, y, batch=self.data.batch)
+
+    def transparent_collider(self, agent: Agent):
+        # TODO: puzzle object proximity to agent
+
+        distance = 50
+
+        # Calculate boundaries
+        left = self.x - distance
+        right = self.x + self.width + distance
+        bottom = self.y - distance
+        top = self.y + self.height + distance
+
+        # Check if agent is in proximity
+        if left <= agent.x <= right and bottom <= agent.y <= top:
+            return True
+
+        return False
 
 
 PUZZLE_DATA = {

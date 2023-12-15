@@ -8,6 +8,10 @@ DISTANCE_DOOR = .2
 DISTANCE_KEY = .2
 DISTANCE_DANGER = .2
 
+# TODO: Game state is buggy with multiple puzzle objects, for now we can add a function directly into the
+# puzzle data class to evaluate distance and proximity to agent class. this way we can make sure that each object
+# call on this function to interact with game states.
+
 
 @dataclass
 class CollisionState:
@@ -20,11 +24,6 @@ class CollisionState:
     nearby_red_key: bool = field(default=False)
     nearby_blue_key: bool = field(default=False)
     nearby_danger: bool = field(default=False)
-
-    def __repr__(self):
-        return f"""
-    {self.nearby_blue_key, self.nearby_red_key}   
-        """
 
     @staticmethod
     def check_distance(agent, puzzle_obj, algorithm: Literal['euc', 'manh', 'perc']):
