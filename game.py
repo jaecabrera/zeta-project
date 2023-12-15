@@ -4,6 +4,7 @@ import numpy as np
 import pyglet as pyg
 import pyglet.image
 from icecream import ic
+from pyglet.image import Animation
 from pyglet.window import key
 
 from agent import Agent
@@ -70,7 +71,12 @@ class GoblinAI(pyg.window.Window):
     def retrieve_pyglet_images(self):
         self.game_images = self.image_manager.pyglet_images
 
-    def make_puzzle_data(self, puzzle_data: dict):
+    def make_puzzle_data(self, puzzle_data: dict) -> None:
+        """
+        A function to load pyglet images and create batch using puzzle data with their corresponding puzzle data.
+        :param puzzle_data:
+        :return: None
+        """
 
         puzzle_data.get('b').image = self.image_manager.pyglet_images.get('crate_image')
         self.puzzle_crate = puzzle_data.get('b')
@@ -105,7 +111,12 @@ class GoblinAI(pyg.window.Window):
             self.puzzle_blue_shroom
         ]
 
-    def place_puzzle_objects(self, stage: dict):
+    def place_puzzle_objects(self, stage: dict) -> None:
+        """
+        A function that will place puzzle objects on their corresponding coordinates and will depend on game window size
+        :param stage: JSON data of stage (converted using stage.py)
+        :return: None
+        """
         for k in stage.keys():
             stage.get(k)
             tuple_stage_puzzle = [tuple(x) for x in stage.get(k)]
@@ -143,8 +154,11 @@ class GoblinAI(pyg.window.Window):
             flag_animated = self.set_flag()
             self.flag_finish = pyglet.sprite.Sprite(flag_animated, 70, 350)
 
-    def set_flag(self):
-
+    def set_flag(self) -> Animation:
+        """
+        Sets the finish flag of the stage.
+        :return: Animation sprite
+        """
         flag_image = self.image_manager.pyglet_images.get('flag_image')
         flag_image_animation = pyg.image.ImageGrid(flag_image, 1, 6)
         flag_texture_grid = pyg.image.TextureGrid(flag_image_animation)
@@ -153,6 +167,7 @@ class GoblinAI(pyg.window.Window):
         return flag_image_obj
 
     def make_game_stats_label(self):
+
         self.game_stats = pyglet.text.Label(
             text='',
             x=self.width - 50,
@@ -195,7 +210,7 @@ class GoblinAI(pyg.window.Window):
             case key.B:
                 ic(self.state.nearby_red_door, self.state.nearby_blue_door, self.state.nearby_red_key,
                    self.state.nearby_blue_key,
-                   self.state.nearby_danger, len(self.trap_list))
+                   self.state.nearby_danger)
 
     def on_key_release(self, symbol, modifiers):
 
@@ -225,7 +240,11 @@ class GoblinAI(pyg.window.Window):
                 self.agent.y + self.agent.height > game_obj.y
         )
 
-    def reset_stage(self):
+    def reset_stage(self) -> None:
+        """
+        Resets the game stage which is all puzzle objects. (box, doors, keys)
+        :return: None
+        """
 
         self.blue_door_list.clear()
         self.red_door_list.clear()
@@ -238,8 +257,17 @@ class GoblinAI(pyg.window.Window):
 
     def _move(self, action):
 
-        if np.array_equal(action, [1, 0, 0, 0]):
-            ...
+        if np.array_equal(action, a2=[1, 0, 0, 0]):
+            self.agent.move(direction='left', state=True)
+
+        if np.array_equal(action, a2=[0, 1, 0, 0]):
+            self.agent.move(direction='right', state=True)
+
+        if np.array_equal(action, a2=[0, 0, 1, 0]):
+            self.agent.move(direction='up', state=True)
+
+        else:
+            self.agent.move(direction='down', state=True)
 
     def store_total_puzzle_objects(self) -> None:
         """
@@ -320,17 +348,22 @@ class GoblinAI(pyg.window.Window):
         ic(self.game_score)
 
     def game_end(self):
-
+        """
+        A helper function to end the game where stage will reset, timer will reset, game score wil reset and
+        overall score will be calculated.
+        :return:
+        """
         self.agent.die()
         self.calculate_total_stage_score()
         self.reset_stage()
         self.agent.frame_iteration = 0
         self.game_score = 0
 
-    def update(self, dt):
+    def update(self, dt, action):
+
         global GAME_WIN
-        self.collision_state(self.agent)
         self.agent.update(dt)
+
         previous_reward = self.reward
         self.game_stats.text = f"""
         Red: {self.agent.inventory.red_key} Blue: {self.agent.inventory.blue_key} 
@@ -339,22 +372,27 @@ class GoblinAI(pyg.window.Window):
         Seconds: {self.agent.frame_iteration:0.2f}"""
 
         # TODO: Frame-iteration uncomment after test.
-        # if (self.agent.frame_iteration >= 60) & (self.reward == 0):
-        #     self.agent.die()
-        #     self.game_end()
-        #     self.reward -= 10
-        #
-        # if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
-        #     self.agent.die()
-        #     self.game_end()
-        #     self.reward -= 10
+        if (self.agent.frame_iteration >= 60) & (self.reward == 0):
+            self.agent.die()
+            self.game_end()
+            self.reward -= 10
+
+        if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
+            self.agent.die()
+            self.game_end()
+            self.reward -= 10
 
         for crates in self.box_list:
+            "Crates / Walls"
             if self.check_collision(crates):
                 self.agent.x = self.agent.prev_x
                 self.agent.y = self.agent.prev_y
 
         for traps in self.trap_list:
+            "Traps / danger tiles"
+            if traps.transparent_collider(self.agent):
+                self.state.nearby_danger = traps.transparent_collider(self.agent)
+
             if self.check_collision(traps):
                 self.agent.die()
                 self.game_end()
@@ -362,6 +400,10 @@ class GoblinAI(pyg.window.Window):
 
         for r_shroom in self.red_mushroom_list:
             "Red shroom / key is added to inventory when agent collides with shroom"
+
+            if r_shroom.transparent_collider(self.agent):
+                self.state.nearby_red_key = r_shroom.transparent_collider(self.agent)
+
             if self.check_collision(r_shroom):
                 self.red_mushroom_list.remove(r_shroom)
                 self.agent.inventory.add_red()
@@ -370,6 +412,10 @@ class GoblinAI(pyg.window.Window):
 
         for b_shroom in self.blue_mushroom_list:
             "Blue shroom / key is added to inventory when agent collides with shroom"
+
+            if b_shroom.transparent_collider(self.agent):
+                self.state.nearby_blue_key = b_shroom.transparent_collider(self.agent)
+
             if self.check_collision(b_shroom):
                 self.reward += 10
                 self.game_score += 50
@@ -378,6 +424,10 @@ class GoblinAI(pyg.window.Window):
 
         for r_door in self.red_door_list:
             "Check if agent has a red key, if true then removes red door and deducts red total key."
+
+            if r_door.transparent_collider(self.agent):
+                self.state.nearby_red_door = r_door.transparent_collider(self.agent)
+
             if self.agent.inventory.red_key != 0:
 
                 if self.check_collision(r_door):
@@ -393,6 +443,10 @@ class GoblinAI(pyg.window.Window):
 
         for b_door in self.blue_door_list:
             "Check if self.agent has a blue key, if true then removes blue door and deducts blue total key."
+
+            if b_door.transparent_collider(self.agent):
+                self.state.nearby_blue_door = b_door.transparent_collider(self.agent)
+
             if self.agent.inventory.blue_key != 0:
 
                 if self.check_collision(b_door):
@@ -410,111 +464,6 @@ class GoblinAI(pyg.window.Window):
             GAME_WIN = True
             self.agent.game_win()
             self.game_end()
-
-    def collision_state(self, agent):
-        # TODO: update states that relies on object interaction
-        # nearby attributes should have pixel padding between agent and object
-        # on the other end box collisions will have (-) reward since we don't want our agent
-        # to keep on colliding with the states. (can test w/o reward)
-
-        # nearby constant
-        NEAR_CONSTANT: float = 50.0
-        #
-        # a = [self.agent.x < _.x + _.width and
-        #      self.agent.x + self.agent.width > _.x and
-        #      self.agent.y < _.y + _.height and
-        #      self.agent.y + self.agent.height > _.y]
-
-        # TODO: extending list will create duplicates of the mushroom the pointer used is the same with the whole game
-        # pointer and thus replacing keys.
-
-        # # doors in-game
-        blue_door_list = self.blue_door_list.copy()
-        red_door_list = self.red_door_list.copy()
-        red_key_list = self.red_mushroom_list.copy()
-        blue_key_list = self.blue_mushroom_list.copy()
-        trap_list = self.trap_list.copy()
-
-        def clear_collision_states() -> None:
-            blue_door_list.clear()
-            red_door_list.clear()
-            red_key_list.clear()
-            blue_key_list.clear()
-            trap_list.clear()
-
-        # traps in-game
-        # trap_list = self.trap_list.copy()
-
-        # TODO: Add try and except block if keys / doors do not exist anymore will not raise a value and make sure
-        # that the state of non existing objects are `False`.
-
-        # key referring to puzzle object key (mushrooms)
-        # for _key in key_list:
-        #
-        #     # left
-        #     if _key.x - NEAR_CONSTANT < agent.x:
-        #         self.state.nearby_key = True
-        #     # right
-        #     if _key.x + NEAR_CONSTANT > agent.x:
-        #         self.state.nearby_key = True
-        #     # up
-        #     if _key.y < agent.y - NEAR_CONSTANT:
-        #         self.state.nearby_key = True
-        #     # down
-        #     if _key.y > agent.y + NEAR_CONSTANT:
-        #         self.state.nearby_key = True
-        #
-        #     else:
-        #         self.state.nearby_key = False
-        for _door in blue_door_list:
-            self.state.update_state(self.agent, _door, _state='nearby_blue_door')
-            blue_door_list.clear()
-        for _door in red_door_list:
-            self.state.update_state(self.agent, _door, _state='nearby_red_door')
-            red_door_list.clear()
-        for _key in red_key_list:
-            self.state.update_state(self.agent, _key, _state='nearby_red_key')
-            red_key_list.clear()
-        for _key in blue_key_list:
-            self.state.update_state(self.agent, _key, _state='nearby_blue_key')
-            blue_key_list.clear()
-        for _trap in trap_list:
-            self.state.update_state(self.agent, _trap, _state='nearby_danger')
-            trap_list.clear()
-
-        print(self.state.__repr__())
-        # clear_collision_states()
-        #
-        # for _key in key_list:
-        #     self.state.update_state(self.agent, _key, _state='nearby_key')
-        #     key_list.clear()
-        #
-        # for _trap in trap_list:
-        #     self.state.update_state(self.agent, _trap, _state='nearby_danger')
-        #     trap_list.clear()
-
-        # if self.state.nearby_danger:
-        #     ic(self.state.nearby_danger)
-
-        # for _trap in trap_list:
-        #
-        #     # left
-        #     if _trap.x - NEAR_CONSTANT < agent.x:
-        #         self.state.nearby_door = True
-        #     # right
-        #     if _trap.x + NEAR_CONSTANT > agent.x:
-        #         self.state.nearby_door = True
-        #     # up
-        #     if _trap.y < agent.y - NEAR_CONSTANT:
-        #         self.state.nearby_door = True
-        #     # down
-        #     if _trap.y > agent.y + NEAR_CONSTANT:
-        #         self.state.nearby_door = True
-
-        # default_states = [self.state.up, self.state.down, self.state.right, self.state.down]
-        # col_puzzle_states = [self.state.nearby_door, self.state.nearby_key, self.state.nearby_danger]
-        # default_states.extend(col_puzzle_states)
-        # return default_states
 
 
 if __name__ == '__main__':

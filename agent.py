@@ -4,12 +4,15 @@ from enum import Enum
 import torch
 from pyglet.window.key import KeyStateHandler
 
+from game import GoblinAI
 from game_state import CollisionState
 # from game import CollisionState
 # from game import GoblinAI
 from inventory_system import Inventory
+from loader import GAME_SPECS, AGENT_PARAMS, IMAGE_MANAGER, STAGE_A
 from model import Linear_QNet, QTrainer
 from util.common_imports import *
+from util.puzzle import PUZZLE_DATA
 
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
@@ -77,25 +80,19 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
-    def get_state(self, col_state: CollisionState) -> None:
-        self.state = [
-            col_state.up,
-            col_state.down,
-            col_state.right,
-            col_state.down,
-            col_state.nearby_danger,
-            col_state.nearby_key,
-            col_state.nearby_door
-        ]
+    @staticmethod
+    def get_state(game: GoblinAI) -> CollisionState:
+        return game.state
 
     def get_action(self) -> pyg.window.key:
         self.epsilon = 80 - self.n_games
 
         movement_pattern = [0, 0, 0, 0]
 
-        if np.random.randint(0, 200) < self.epsilon:
-            move = np.random.randint(0, 3)
+        if np.random.randint(low=0, high=200) < self.epsilon:
+            move = np.random.randint(low=0, high=3)
             movement_pattern[move] = 1
+
         else:
             state0 = torch.tensor(self.state, dtype=torch.float)
             prediction = self.model(state0)
@@ -152,20 +149,22 @@ class Agent(pyg.sprite.Sprite, MovementManager):
 
 
 def train():
-    ...
-    # game = GoblinAI(
-    #     **GAME_SPECS.get_window_params(),
-    #     f_screen=False,
-    #     ai_params=AGENT_PARAMS,
-    #     img_manager=IMAGE_MANAGER,
-    #     puzzle_data=PUZZLE_DATA,
-    #     stage=STAGE_A)
+    game = GoblinAI(
+        **GAME_SPECS.get_window_params(),
+        f_screen=False,
+        ai_params=AGENT_PARAMS,
+        img_manager=IMAGE_MANAGER,
+        puzzle_data=PUZZLE_DATA,
+        stage=STAGE_A)
 
-    # old state
-    state_old = game.agent.get_state()
-#     final_move = agent.get_action(state_old)
-#     reward, done, score = game.play_step(final_move)
-#     state_new = agent.get_state(game)
+    state_old = game.agent.state
+    final_move = game.agent.get_action(state_old)
+    pyg.clock.schedule_interval(game.update, 1 / 60.0)
+    reward, done, score = game.update()
+
+    pyg.app.run()
+    state_new = agent.get_state(game)
+
 #
 #     # train short memory
 #     agent.train_short_memory(state_old, final_move, reward, state_new, done)
