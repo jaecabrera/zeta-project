@@ -7,11 +7,9 @@ from icecream import ic
 from pyglet.image import Animation
 from pyglet.window import key
 
-from agent import Agent
 from game_state import CollisionState
-from loader import STAGE_A, IMAGE_MANAGER, AGENT_PARAMS, GAME_SPECS
 from util.images import ImageManager
-from util.puzzle import PUZZLE_DATA, PuzzleObject
+from util.puzzle import PuzzleObject
 
 GAME_WIN: bool = False
 
@@ -24,7 +22,7 @@ class ScoreRecords:
 
 class GoblinAI(pyg.window.Window):
 
-    def __init__(self, width: int, height: int, f_screen: bool, ai_params: dict, img_manager: ImageManager,
+    def __init__(self, width: int, height: int, f_screen: bool, _agent, img_manager: ImageManager,
                  puzzle_data, stage) -> None:
         super().__init__(width, height, fullscreen=f_screen)
         self.game_score_record = None
@@ -49,7 +47,7 @@ class GoblinAI(pyg.window.Window):
         self.stage = stage
         self.state = CollisionState()
         self.__post_init__()
-        self.agent = Agent(**ai_params)
+        self.agent = _agent
         self.reward = 0
         self.game_score = 0
 
@@ -359,7 +357,7 @@ class GoblinAI(pyg.window.Window):
         self.agent.frame_iteration = 0
         self.game_score = 0
 
-    def update(self, dt, action):
+    def update(self, dt):
 
         global GAME_WIN
         self.agent.update(dt)
@@ -464,16 +462,3 @@ class GoblinAI(pyg.window.Window):
             GAME_WIN = True
             self.agent.game_win()
             self.game_end()
-
-
-if __name__ == '__main__':
-    game = GoblinAI(
-        **GAME_SPECS.get_window_params(),
-        f_screen=False,
-        ai_params=AGENT_PARAMS,
-        img_manager=IMAGE_MANAGER,
-        puzzle_data=PUZZLE_DATA,
-        stage=STAGE_A)
-
-    pyg.clock.schedule_interval(game.update, 1 / 60.0)
-    pyglet.app.run()

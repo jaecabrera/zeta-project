@@ -4,10 +4,7 @@ from enum import Enum
 import torch
 from pyglet.window.key import KeyStateHandler
 
-from game import GoblinAI
-from game_state import CollisionState
-# from game import CollisionState
-# from game import GoblinAI
+import game
 from inventory_system import Inventory
 from loader import GAME_SPECS, AGENT_PARAMS, IMAGE_MANAGER, STAGE_A
 from model import Linear_QNet, QTrainer
@@ -80,11 +77,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.model = Linear_QNet(11, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
-    @staticmethod
-    def get_state(game: GoblinAI) -> CollisionState:
-        return game.state
-
-    def get_action(self) -> pyg.window.key:
+    def get_action(self, state) -> list:
         self.epsilon = 80 - self.n_games
 
         movement_pattern = [0, 0, 0, 0]
@@ -94,7 +87,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
             movement_pattern[move] = 1
 
         else:
-            state0 = torch.tensor(self.state, dtype=torch.float)
+            state0 = torch.tensor(state, dtype=torch.float)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             movement_pattern[move] = 1
@@ -149,21 +142,23 @@ class Agent(pyg.sprite.Sprite, MovementManager):
 
 
 def train():
-    game = GoblinAI(
+    # initialize game
+    g = game.GoblinAI(
         **GAME_SPECS.get_window_params(),
         f_screen=False,
-        ai_params=AGENT_PARAMS,
+        _agent=Agent(**AGENT_PARAMS),
         img_manager=IMAGE_MANAGER,
         puzzle_data=PUZZLE_DATA,
         stage=STAGE_A)
 
-    state_old = game.agent.state
-    final_move = game.agent.get_action(state_old)
-    pyg.clock.schedule_interval(game.update, 1 / 60.0)
-    reward, done, score = game.update()
+    state_old = g.state()
+    final_move = g.agent.get_action(state_old)
+    pyg.clock.schedule_interval(g.update, 1 / 60.0)
+    # reward, done, score = game.reward, game, game.game_score
 
     pyg.app.run()
-    state_new = agent.get_state(game)
+    # state_new = game.state(game)
+
 
 #
 #     # train short memory
@@ -182,3 +177,6 @@ def train():
 #     agent.model.save()
 #
 #     # etc. etc
+
+if __name__ == '__main__':
+    train()
