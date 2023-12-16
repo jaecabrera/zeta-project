@@ -1,7 +1,10 @@
 from collections import deque
-from enum import Enum
+from random import sample
 
+import matplotlib.pyplot as plt
 import torch
+from IPython import display
+from icecream import ic
 from pyglet.window.key import KeyStateHandler
 
 import game
@@ -16,24 +19,20 @@ BATCH_SIZE = 1000
 LR = 0.001
 
 
-# TODO: Create states agent to game. Make sure the return type is of list[`int`]
-# the state list is a lot which includes multiple boolean values of the states converted into int
-# this includes collisions(box) + mushroom location + door location + spike location
-# we need to give danger states to our model for it to learn to avoid
-# the reinforcement learning model is a basic model. That's why game states should be clear and simple.
-
-class AgentState(Enum):
-    """
-    Temporary: (the better solution is to have a function to assert game state to agent rather than
-    creating a list of per collision identifiers).
-    """
-    collision_left = [1, 0, 0, 0]
-    collision_right = [1, 0, 0, 0]
-    collision_top = [1, 0, 0, 0]
-    collision_down = ...
-    spike = ...
-    door_unlocked = ...
-    door_locked = ...
+def plot(scores, mean_scores):
+    display.clear_output(wait=True)
+    display.display(plt.gcf())
+    plt.clf()
+    plt.title('Training...')
+    plt.xlabel('Number of Games')
+    plt.ylabel('Score')
+    plt.plot(scores)
+    plt.plot(mean_scores)
+    plt.ylim(ymin=0)
+    plt.text(len(scores) - 1, scores[-1], str(scores[-1]))
+    plt.text(len(mean_scores) - 1, mean_scores[-1], str(mean_scores[-1]))
+    plt.show(block=False)
+    plt.pause(.1)
 
 
 @dataclass
@@ -74,10 +73,11 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.epsilon = 0
         # 11 game states , 3 actions
         self.memory = deque(maxlen=MAX_MEMORY)
-        self.model = Linear_QNet(11, 256, 3)
+        self.model = Linear_QNet(4, 4, 4)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def get_action(self, state) -> list:
+
         self.epsilon = 80 - self.n_games
 
         movement_pattern = [0, 0, 0, 0]
@@ -88,6 +88,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
 
         else:
             state0 = torch.tensor(state, dtype=torch.float)
+            ic(state0)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             movement_pattern[move] = 1
@@ -98,11 +99,11 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.memory.append((state, action, reward, next_state, done))
 
     def train_short_memory(self, state, action, reward, next_state, done) -> None:
-        self.trainer.train_step(self, state, action, reward, next_state, done)
+        self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_long_memory(self):
         if len(self.memory) > BATCH_SIZE:
-            mini_sample = random.sample(self.memory, BATCH_SIZE)
+            mini_sample = sample(self.memory, BATCH_SIZE)
         else:
             mini_sample = self.memory
 
@@ -118,11 +119,27 @@ class Agent(pyg.sprite.Sprite, MovementManager):
     def frame_iteration(self, value):
         self._frame_iteration = value
 
-    def update(self, dt):
+    def make_move(self, action):
 
+        if np.array_equal(action, a2=[1, 0, 0, 0]):
+            self.x -= self.speed * self.dt
+
+        if np.array_equal(action, a2=[0, 1, 0, 0]):
+            ic('going right')
+            self.x += self.speed * self.dt
+
+        if np.array_equal(action, a2=[0, 0, 1, 0]):
+            ic('going up')
+            self.y += self.speed * self.dt
+
+        else:
+            ic('going down')
+            self.y -= self.speed * self.dt
+
+    def update(self, dt):
+        self.dt = dt
         self.prev_x = self.x
         self.prev_y = self.y
-
         self.frame_iteration += dt
 
         if self.left:
@@ -154,37 +171,31 @@ def train():
         puzzle_data=PUZZLE_DATA,
         stage=STAGE_A)
 
-    while True:
+    pyg.clock.schedule_interval(g.update, 1 / 60.0)
+    pyg.app.run()
+    plot_scores = []
+    plot_mean_scores = []
+    total_score = 0
+    record = 0
 
-        pyg.clock.schedule_interval(g.update, 1 / 60.0)
-        pyg.app.run()
-        state_old = g.state()
-        final_move = g.agent.get_action(state_old)
-        # reward, done, score = game.reward, game, game.game_score
-        state_new = game.state(game)
-
-        g.agent.train_short_memory(state_old, final_move, reward, state_new, done)
-        g.agent.train_short_memory()
-
-        if done:
-            g.game_end()
-            g.agent.n_games += 1
-            g.agent.train_long_memory()
-
+    # if done:
+    #
+    #     g.agent.n_games += 1
+    #     g.agent.train_long_memory()
     #
     #     # remember
-    #     agent.remember(state_old, final_move, reward, state_new, done)
+    #     g.agent.remember(state_old, final_move, reward, state_new, done)
     #
-    #     # if done
-    #     game.reset_stage()
-    #     agent.train_long_memory()
-    #     agent.n_games += 1
+    #     if g.game_score > record:
+    #         record = g.game_score
+    #         g.agent.model.save()
     #
-    #     # if score > record:
-    #     record = score
-    #     agent.model.save()
-    #
-    #     # etc. etc
+    #     print('game', g.agent.n_games, 'score', g.game_score, 'record', record)
+    #     plot_scores.append(g.game_score)
+    #     total_score += g.game_score
+    #     mean_score = total_score / g.agent.n_games
+    #     plot_mean_scores.append(mean_score)
+    #     plot(plot_scores, plot_mean_scores)
 
 
 if __name__ == '__main__':

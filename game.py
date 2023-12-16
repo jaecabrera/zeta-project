@@ -12,6 +12,7 @@ from util.images import ImageManager
 from util.puzzle import PuzzleObject
 
 GAME_WIN: bool = False
+DONE: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -23,8 +24,8 @@ class ScoreRecords:
 class GoblinAI(pyg.window.Window):
 
     def __init__(self, width: int, height: int, f_screen: bool, _agent, img_manager: ImageManager,
-                 puzzle_data, stage) -> None:
-        super().__init__(width, height, fullscreen=f_screen)
+                 puzzle_data, stage, *args, **kwargs) -> None:
+        super().__init__(width, height, fullscreen=f_screen, *args, **kwargs)
         self.game_score_record = None
         self.blue_door_list = []
         self.red_door_list = []
@@ -50,6 +51,7 @@ class GoblinAI(pyg.window.Window):
         self.agent = _agent
         self.reward = 0
         self.game_score = 0
+        self.move_direction = [0, 0, 0, 0]
 
     def __post_init__(self):
         self.retrieve_pyglet_images()
@@ -187,7 +189,11 @@ class GoblinAI(pyg.window.Window):
         self.puzzle_red_door.batch.draw()
         self.puzzle_blue_door.batch.draw()
 
+    def some_event(self):
+        ...
+
     def on_key_press(self, symbol, modifiers):
+
         match symbol:
 
             case key.W:
@@ -209,6 +215,9 @@ class GoblinAI(pyg.window.Window):
                 ic(self.state.nearby_red_door, self.state.nearby_blue_door, self.state.nearby_red_key,
                    self.state.nearby_blue_key,
                    self.state.nearby_danger)
+
+            case key.ESCAPE:
+                self.close()
 
     def on_key_release(self, symbol, modifiers):
 
@@ -256,16 +265,26 @@ class GoblinAI(pyg.window.Window):
     def _move(self, action):
 
         if np.array_equal(action, a2=[1, 0, 0, 0]):
+
             self.agent.move(direction='left', state=True)
 
         if np.array_equal(action, a2=[0, 1, 0, 0]):
+
             self.agent.move(direction='right', state=True)
 
         if np.array_equal(action, a2=[0, 0, 1, 0]):
+
             self.agent.move(direction='up', state=True)
 
         else:
             self.agent.move(direction='down', state=True)
+
+    def clean_movement(self):
+
+        self.agent.move(direction='left', state=False)
+        self.agent.move(direction='right', state=False)
+        self.agent.move(direction='up', state=False)
+        self.agent.move(direction='down', state=False)
 
     def store_total_puzzle_objects(self) -> None:
         """
@@ -346,39 +365,62 @@ class GoblinAI(pyg.window.Window):
         ic(self.game_score)
 
     def game_end(self) -> None:
+        global DONE
         """
         A helper function to end the game where stage will reset, timer will reset, game score wil reset and
         overall score will be calculated.
         :return:
         """
         self.agent.die()
+        DONE = True
         self.calculate_total_stage_score()
         self.reset_stage()
         self.agent.frame_iteration = 0
         self.game_score = 0
+        DONE = False
+
+    def get_game_data(self) -> tuple[int | float, bool, int | float]:
+
+        # game win variable is not same with game - end, as game should end without winning (agent death etc .)
+        global DONE
+
+        return self.reward, DONE, self.game_score
+
+    def train_agent(self):
+
+        state_old = self.state.get_state()
+        final_move = self.agent.get_action(state_old)
+        reward, done, score = self.get_game_data()
+        state_new = self.state.get_state()
+
+        return state_old, final_move, reward, state_new, done
 
     def update(self, dt):
 
         global GAME_WIN
+        global DONE
+
         self.agent.update(dt)
 
+        state_old, final_move, reward, state_new, done = self.train_agent()
+        self._move(final_move)
+        ic(state_old, final_move, reward, state_new, done)
+        ic(self.agent.x, self.agent.y)
         previous_reward = self.reward
+
         self.game_stats.text = f"""
         Red: {self.agent.inventory.red_key} Blue: {self.agent.inventory.blue_key} 
         Win: {self.agent.win} / Death: {self.agent.death}
         Score: {self.game_score} / Reward: {self.reward}
         Seconds: {self.agent.frame_iteration:0.2f}"""
 
-        # TODO: Frame-iteration uncomment after test.
-        if (self.agent.frame_iteration >= 60) & (self.reward == 0):
-            self.agent.die()
-            self.game_end()
+        if (self.agent.frame_iteration >= 20) & (self.reward == 0):
             self.reward -= 10
+            self.game_end()
 
-        if (self.agent.frame_iteration >= 60) & (self.reward == previous_reward):
-            self.agent.die()
-            self.game_end()
+        if (self.agent.frame_iteration >= 20) & (self.reward == previous_reward):
             self.reward -= 10
+            self.game_end()
 
         for crates in self.box_list:
             "Crates / Walls"
@@ -392,9 +434,8 @@ class GoblinAI(pyg.window.Window):
                 self.state.nearby_danger = traps.transparent_collider(self.agent)
 
             if self.check_collision(traps):
-                self.agent.die()
-                self.game_end()
                 self.reward -= 10
+                self.game_end()
 
         for r_shroom in self.red_mushroom_list:
             "Red shroom / key is added to inventory when agent collides with shroom"
@@ -462,3 +503,26 @@ class GoblinAI(pyg.window.Window):
             GAME_WIN = True
             self.agent.game_win()
             self.game_end()
+
+        if done:
+
+            self.agent.n_games += 1
+            ic('total_games', self.agent.n_games)
+
+            self.agent.train_long_memory()
+            ic('trained long-term memory', self.agent.n_games)
+
+            # remember
+            self.agent.remember(state_old, final_move, reward, state_new, done)
+            ic('agent remembered', self.agent.n_games)
+
+            # if g.game_score > record:
+            #     record = g.game_score
+            #     g.agent.model.save()
+            #
+            # print('game', g.agent.n_games, 'score', g.game_score, 'record', record)
+            # plot_scores.append(g.game_score)
+            # total_score += g.game_score
+            # mean_score = total_score / g.agent.n_games
+            # plot_mean_scores.append(mean_score)
+            # plot(plot_scores, plot_mean_scores)
