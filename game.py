@@ -345,7 +345,7 @@ class GoblinAI(pyg.window.Window):
         self.game_score += game_score
         ic(self.game_score)
 
-    def game_end(self):
+    def game_end(self) -> None:
         """
         A helper function to end the game where stage will reset, timer will reset, game score wil reset and
         overall score will be calculated.
