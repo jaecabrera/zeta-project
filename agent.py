@@ -97,11 +97,14 @@ class Agent(pyg.sprite.Sprite, MovementManager):
     def remember(self, state, action, reward, next_state, done) -> None:
         self.memory.append((state, action, reward, next_state, done))
 
-    def train_short_memory(self):
-        ...
+    def train_short_memory(self, state, action, reward, next_state, done) -> None:
+        self.trainer.train_step(self, state, action, reward, next_state, done)
 
     def train_long_memory(self):
-        ...
+        if len(self.memory) > BATCH_SIZE:
+            mini_sample = random.sample(self.memory, BATCH_SIZE)
+        else:
+            mini_sample = self.memory
 
     def game_win(self):
         self.x, self.y = self.spawn_position
@@ -151,32 +154,38 @@ def train():
         puzzle_data=PUZZLE_DATA,
         stage=STAGE_A)
 
-    state_old = g.state()
-    final_move = g.agent.get_action(state_old)
-    pyg.clock.schedule_interval(g.update, 1 / 60.0)
-    # reward, done, score = game.reward, game, game.game_score
+    while True:
 
-    pyg.app.run()
-    # state_new = game.state(game)
+        pyg.clock.schedule_interval(g.update, 1 / 60.0)
+        pyg.app.run()
+        state_old = g.state()
+        final_move = g.agent.get_action(state_old)
+        # reward, done, score = game.reward, game, game.game_score
+        state_new = game.state(game)
 
+        g.agent.train_short_memory(state_old, final_move, reward, state_new, done)
+        g.agent.train_short_memory()
 
-#
-#     # train short memory
-#     agent.train_short_memory(state_old, final_move, reward, state_new, done)
-#
-#     # remember
-#     agent.remember(state_old, final_move, reward, state_new, done)
-#
-#     # if done
-#     game.reset_stage()
-#     agent.train_long_memory()
-#     agent.n_games += 1
-#
-#     # if score > record:
-#     record = score
-#     agent.model.save()
-#
-#     # etc. etc
+        if done:
+            g.game_end()
+            g.agent.n_games += 1
+            g.agent.train_long_memory()
+
+    #
+    #     # remember
+    #     agent.remember(state_old, final_move, reward, state_new, done)
+    #
+    #     # if done
+    #     game.reset_stage()
+    #     agent.train_long_memory()
+    #     agent.n_games += 1
+    #
+    #     # if score > record:
+    #     record = score
+    #     agent.model.save()
+    #
+    #     # etc. etc
+
 
 if __name__ == '__main__':
     train()
