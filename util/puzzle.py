@@ -4,7 +4,6 @@ from typing import Literal, Union, Optional
 import pyglet.image
 import numpy as np
 
-from agent import Agent
 from util.common_imports import *
 
 
@@ -44,7 +43,7 @@ class PuzzleObject(pyg.sprite.Sprite):
 
         super().__init__(self.data.image, x, y, batch=self.data.batch)
 
-    def transparent_collider(self, agent: Agent):
+    def transparent_collider(self, agent):
         # TODO: puzzle object proximity to agent
 
         distance = 50
