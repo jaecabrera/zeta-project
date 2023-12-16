@@ -2,23 +2,19 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-from icecream import ic
+import numpy as np
 
 DISTANCE_DOOR = .2
 DISTANCE_KEY = .2
 DISTANCE_DANGER = .2
 
-# TODO: Game state is buggy with multiple puzzle objects, for now we can add a function directly into the
-# puzzle data class to evaluate distance and proximity to agent class. this way we can make sure that each object
-# call on this function to interact with game states.
-
 
 @dataclass
 class CollisionState:
-    left: bool = field(default=False)
-    right: bool = field(default=False)
-    up: bool = field(default=False)
-    down: bool = field(default=False)
+    # left: bool = field(default=False)
+    # right: bool = field(default=False)
+    # up: bool = field(default=False)
+    # down: bool = field(default=False)
     nearby_red_door: bool = field(default=False)
     nearby_blue_door: bool = field(default=False)
     nearby_red_key: bool = field(default=False)
@@ -34,6 +30,10 @@ class CollisionState:
                 return abs(agent.x - puzzle_obj.x) + abs(agent.y - puzzle_obj.y)
             case 'perc':
                 return agent.x - puzzle_obj.x / puzzle_obj.x * 100
+
+    def get_state(self):
+        return np.array([self.nearby_red_door, self.nearby_blue_door, self.nearby_red_key, self.nearby_blue_key],
+                        dtype='int')
 
     def update_state(self, agent, puzzle_obj,
                      _state: Literal[

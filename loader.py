@@ -27,5 +27,5 @@ AGENT_PARAMS = {
     'sprite_grid': animation,
     'x': 64,
     'y': 64,
-    'spd': 250,
+    'spd': 30,
 }
