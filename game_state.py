@@ -15,6 +15,7 @@ class CollisionState:
     # right: bool = field(default=False)
     # up: bool = field(default=False)
     # down: bool = field(default=False)
+    colliding_with_wall: bool = field(default=False)
     nearby_red_door: bool = field(default=False)
     nearby_blue_door: bool = field(default=False)
     nearby_red_key: bool = field(default=False)
@@ -32,7 +33,8 @@ class CollisionState:
                 return agent.x - puzzle_obj.x / puzzle_obj.x * 100
 
     def get_state(self):
-        return np.array([self.nearby_red_door, self.nearby_blue_door, self.nearby_red_key, self.nearby_blue_key],
+        return np.array([self.colliding_with_wall, self.nearby_red_door, self.nearby_blue_door, self.nearby_red_key,
+                         self.nearby_blue_key],
                         dtype='int')
 
     def update_state(self, agent, puzzle_obj,
