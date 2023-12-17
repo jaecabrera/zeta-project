@@ -73,7 +73,8 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.epsilon = 0
         # 11 game states , 3 actions
         self.memory = deque(maxlen=MAX_MEMORY)
-        self.model = Linear_QNet(5, 4, 4)
+        # TODO: Change neural network dimensions here
+        self.model = Linear_QNet(9, 256, 4)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     # TODO: Change model Linear QNET input size when adding more state variables.
