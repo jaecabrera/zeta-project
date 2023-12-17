@@ -25,6 +25,8 @@ def multiply_by_pixel(transformed_code_list: list[tuple], px_factor: int) \
 
 def make_map(_map: pd.DataFrame):
     puzzle_objects = {
+        'ai': [],
+        'fg': [],
         'b': [],
         'sp': [],
         'bs': [],

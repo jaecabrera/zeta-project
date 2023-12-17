@@ -68,14 +68,15 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.win = 0
         self.death = 0
         self._frame_iteration = 0
-        self.n_games = 0
+        self.n_games = 1
         self.gamma = 0.9
         self.epsilon = 0
         # 11 game states , 3 actions
         self.memory = deque(maxlen=MAX_MEMORY)
-        self.model = Linear_QNet(4, 4, 4)
+        self.model = Linear_QNet(5, 4, 4)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
+    # TODO: Change model Linear QNET input size when adding more state variables.
     def get_action(self, state) -> list:
 
         self.epsilon = 80 - self.n_games
@@ -88,7 +89,6 @@ class Agent(pyg.sprite.Sprite, MovementManager):
 
         else:
             state0 = torch.tensor(state, dtype=torch.float)
-            ic(state0)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             movement_pattern[move] = 1
@@ -136,22 +136,22 @@ class Agent(pyg.sprite.Sprite, MovementManager):
             ic('going down')
             self.y -= self.speed * self.dt
 
-    def update(self, dt):
-        self.dt = dt
+    def update(self, dt, action):
+
         self.prev_x = self.x
         self.prev_y = self.y
         self.frame_iteration += dt
 
-        if self.left:
+        if np.array_equal(action, a2=[1, 0, 0, 0]):
             self.x -= self.speed * dt
 
-        if self.right:
+        if np.array_equal(action, a2=[0, 1, 0, 0]):
             self.x += self.speed * dt
 
-        if self.up:
+        if np.array_equal(action, a2=[0, 0, 1, 0]):
             self.y += self.speed * dt
 
-        if self.down:
+        else:
             self.y -= self.speed * dt
 
     def die(self):
@@ -173,6 +173,7 @@ def train():
 
     pyg.clock.schedule_interval(g.update, 1 / 60.0)
     pyg.app.run()
+
     plot_scores = []
     plot_mean_scores = []
     total_score = 0

@@ -68,5 +68,5 @@ PUZZLE_DATA = {
     'sp': PuzzleData(puzzle_type='trap', ref_color='None'),
     'rs': PuzzleData(puzzle_type='key', ref_color='red'),
     'bs': PuzzleData(puzzle_type='key', ref_color='blue'),
-    'fl': PuzzleData(puzzle_type='flag', ref_color='blue')
+    'fl': PuzzleData(puzzle_type='flag', ref_color='blue'),
 }
