@@ -4,17 +4,20 @@ from typing import Literal
 
 import numpy as np
 
-DISTANCE_DOOR = .2
-DISTANCE_KEY = .2
-DISTANCE_DANGER = .2
+DISTANCE_DOOR = .4
+DISTANCE_KEY = .4
+DISTANCE_DANGER = .4
 
-
+# TODO: Add core states here
 @dataclass
 class CollisionState:
     # left: bool = field(default=False)
     # right: bool = field(default=False)
     # up: bool = field(default=False)
     # down: bool = field(default=False)
+    colliding_with_trap: bool = field(default=False)
+    colliding_with_door: bool = field(default=False)
+    holding_key: bool = field(default=False)
     colliding_with_wall: bool = field(default=False)
     nearby_red_door: bool = field(default=False)
     nearby_blue_door: bool = field(default=False)
@@ -33,8 +36,9 @@ class CollisionState:
                 return agent.x - puzzle_obj.x / puzzle_obj.x * 100
 
     def get_state(self):
-        return np.array([self.colliding_with_wall, self.nearby_red_door, self.nearby_blue_door, self.nearby_red_key,
-                         self.nearby_blue_key],
+        # TODO: add get states here
+        return np.array([self.colliding_with_trap, self.colliding_with_door, self.holding_key, self.colliding_with_wall, self.nearby_red_door, self.nearby_blue_door,
+                         self.nearby_red_key, self.nearby_blue_key, self.nearby_danger],
                         dtype='int')
 
     def update_state(self, agent, puzzle_obj,

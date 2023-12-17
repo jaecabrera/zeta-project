@@ -6,13 +6,18 @@ import pyglet.image
 from icecream import ic
 from pyglet.image import Animation
 from pyglet.window import key
-
+import logging
 from game_state import CollisionState
 from util.images import ImageManager
 from util.puzzle import PuzzleObject
 from util.viz import plot
+
 GAME_WIN: bool = False
 DONE: bool = False
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 # TODO: Fix range of keys as spawn point is too close to key
 # create new environment state when holding key or not
 # try to fix plotting / or add a way to track loss function (not that important)
@@ -27,7 +32,7 @@ class ScoreRecords:
 class GoblinAI(pyg.window.Window):
 
     def __init__(self, width: int, height: int, f_screen: bool, _agent, img_manager: ImageManager,
-                 puzzle_data, stage, trainer_variable, *args, **kwargs) -> None:
+                 puzzle_data, stage, *args, **kwargs) -> None:
         super().__init__(width, height, fullscreen=f_screen, *args, **kwargs)
         self.game_score_record = None
         self.blue_door_list = []
@@ -55,9 +60,8 @@ class GoblinAI(pyg.window.Window):
         self.reward = 0
         self.game_score = 0
         self.move_direction = [0, 0, 0, 0]
-        self.tv = trainer_variable
         self.record = 0
-        self.plot_scores = []
+        self.training_scores = []
         self.plot_mean_scores = []
         self.total_score = 0
         self.record = 0
@@ -383,8 +387,11 @@ class GoblinAI(pyg.window.Window):
         return self.reward, DONE, self.game_score
 
     def train_agent(self):
-
+        # TODO: Logging not accurate (check no. of states)
         state_old = self.state.get_state()
+        logging.info(f"""
+Holding key : {state_old[0]}, Colliding crates: {state_old[1]}, Nearby red door: {state_old[2]}, Nearby blue door: {state_old[3]}, Nearby red key: {state_old[4]}, Nearby blue key: {state_old[5]} Nearby danger: {state_old[6]}""")
+
         final_move = self.agent.get_action(state_old)
         self._move(final_move)
         reward, done, score = self.get_game_data()
@@ -398,11 +405,9 @@ class GoblinAI(pyg.window.Window):
         global DONE
 
         state_old, final_move, reward, state_new, done = self.train_agent()
-        ic(state_old)
         self.agent.update(dt, final_move)
         self.agent.train_short_memory(state_old, final_move, reward, state_new, done)
         self.agent.remember(state_old, final_move, reward, state_new, done)
-
         previous_reward = self.reward
 
         self.game_stats.text = f"""
@@ -410,6 +415,12 @@ class GoblinAI(pyg.window.Window):
         Win: {self.agent.win} / Death: {self.agent.death}
         Score: {self.game_score} / Reward: {self.reward}
         Seconds: {self.agent.frame_iteration:0.2f}"""
+
+        if (self.agent.inventory.blue_key != 0) | (self.agent.inventory.red_key != 0):
+            self.state.holding_key = True
+
+        else:
+            self.state.holding_key = False
 
         if (self.agent.frame_iteration >= 10) & (self.reward == 0):
             self.reward -= 50
@@ -428,13 +439,15 @@ class GoblinAI(pyg.window.Window):
                 self.state.colliding_with_wall = True
                 self.reward -= 20
 
+        self.state.colliding_with_trap = False
         for traps in self.trap_list:
             "Traps / danger tiles"
             if traps.transparent_collider(self.agent):
                 self.state.nearby_danger = traps.transparent_collider(self.agent)
 
             if self.check_collision(traps):
-                self.reward -= 50
+                self.state.colliding_with_trap = True
+                self.reward -= 100
                 self.game_end()
 
         for r_shroom in self.red_mushroom_list:
@@ -446,7 +459,7 @@ class GoblinAI(pyg.window.Window):
             if self.check_collision(r_shroom):
                 self.red_mushroom_list.remove(r_shroom)
                 self.agent.inventory.add_red()
-                self.reward += 50
+                self.reward += 100
                 self.game_score += 50
 
         for b_shroom in self.blue_mushroom_list:
@@ -456,7 +469,7 @@ class GoblinAI(pyg.window.Window):
                 self.state.nearby_blue_key = b_shroom.transparent_collider(self.agent)
 
             if self.check_collision(b_shroom):
-                self.reward += 50
+                self.reward += 100
                 self.game_score += 50
                 self.blue_mushroom_list.remove(b_shroom)
                 self.agent.inventory.add_blue()
@@ -470,16 +483,19 @@ class GoblinAI(pyg.window.Window):
             if self.agent.inventory.red_key != 0:
 
                 if self.check_collision(r_door):
+                    self.state.colliding_with_door = True
                     self.reward += 100
                     self.game_score += 10
                     self.red_door_list.remove(r_door)
                     self.agent.inventory.minus_red()
 
             elif self.check_collision(r_door):
+                self.state.colliding_with_door = True
                 self.reward -= 25
                 self.agent.x = self.agent.prev_x
                 self.agent.y = self.agent.prev_y
 
+        self.state.colliding_with_door = False
         for b_door in self.blue_door_list:
             "Check if self.agent has a blue key, if true then removes blue door and deducts blue total key."
 
@@ -489,12 +505,14 @@ class GoblinAI(pyg.window.Window):
             if self.agent.inventory.blue_key != 0:
 
                 if self.check_collision(b_door):
+                    self.state.colliding_with_door = True
                     self.reward += 100
                     self.game_score += 10
                     self.blue_door_list.remove(b_door)
                     self.agent.inventory.minus_blue()
 
             elif self.check_collision(b_door):
+                self.state.colliding_with_door = True
                 self.reward -= 25
                 self.agent.x = self.agent.prev_x
                 self.agent.y = self.agent.prev_y
@@ -509,14 +527,12 @@ class GoblinAI(pyg.window.Window):
             self.agent.n_games += 1
             self.agent.train_long_memory()
             self.agent.remember(state_old, final_move, reward, state_new, done)
+            logging.info(f'model has {self.agent.n_games} total')
 
-            if self.game_score > self.record:
-                record = self.game_score
-                self.agent.model.save()
-
-                print('game', self.agent.n_games, 'score', self.game_score, 'record', record)
-                self.plot_scores.append(self.game_score)
-                self.total_score += self.game_score
-                mean_score = self.total_score / self.agent.n_games
-                self.plot_mean_scores.append(mean_score)
-                plot(self.plot_scores, self.plot_mean_scores)
+        if self.game_score > self.record:
+            self.record = self.game_score
+            self.agent.model.save()
+            logging.info(f'Model has reached better game score. of {self.game_score} beating record of {self.record}')
+            self.training_scores.append(self.game_score)
+            mean_score = self.game_score / self.agent.n_games
+            self.training_scores.append(mean_score)
