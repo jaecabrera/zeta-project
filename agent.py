@@ -18,6 +18,8 @@ MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def plot(scores, mean_scores):
     display.clear_output(wait=True)
@@ -75,7 +77,8 @@ class Agent(pyg.sprite.Sprite, MovementManager):
         self.memory = deque(maxlen=MAX_MEMORY)
         # TODO: Change neural network dimensions here
         self.model = Linear_QNet(9, 256, 4)
-        self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+        self.model_cuda = self.model.to(device)
+        self.trainer = QTrainer(self.model_cuda, lr=LR, gamma=self.gamma)
 
     # TODO: Change model Linear QNET input size when adding more state variables.
     def get_action(self, state) -> list:
@@ -89,7 +92,7 @@ class Agent(pyg.sprite.Sprite, MovementManager):
             movement_pattern[move] = 1
 
         else:
-            state0 = torch.tensor(state, dtype=torch.float)
+            state0 = torch.tensor(state, dtype=torch.float, device='cuda')
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
             movement_pattern[move] = 1

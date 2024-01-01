@@ -389,8 +389,8 @@ class GoblinAI(pyg.window.Window):
     def train_agent(self):
         # TODO: Logging not accurate (check no. of states)
         state_old = self.state.get_state()
-        logging.info(f"""
-Holding key : {state_old[0]}, Colliding crates: {state_old[1]}, Nearby red door: {state_old[2]}, Nearby blue door: {state_old[3]}, Nearby red key: {state_old[4]}, Nearby blue key: {state_old[5]} Nearby danger: {state_old[6]}""")
+#         logging.info(f"""
+# Holding key : {state_old[0]}, Colliding crates: {state_old[1]}, Nearby red door: {state_old[2]}, Nearby blue door: {state_old[3]}, Nearby red key: {state_old[4]}, Nearby blue key: {state_old[5]} Nearby danger: {state_old[6]}""")
 
         final_move = self.agent.get_action(state_old)
         self._move(final_move)

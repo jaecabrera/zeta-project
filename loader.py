@@ -28,5 +28,5 @@ AGENT_PARAMS = {
     'sprite_grid': animation,
     'x': ai_spawn[0],
     'y': ai_spawn[1],
-    'spd': 400,
+    'spd': 2_000,
 }

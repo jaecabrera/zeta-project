@@ -6,7 +6,6 @@ from loader import GAME_SPECS, AGENT_PARAMS, STAGE_A, IMAGE_MANAGER
 from util.puzzle import PUZZLE_DATA
 import pyglet as pyg
 import time
-from IPython import display
 
 
 class TrainerGoblinAI:
@@ -20,7 +19,7 @@ class TrainerGoblinAI:
             puzzle_data=PUZZLE_DATA,
             stage=STAGE_A)
 
-        pyg.clock.schedule_interval(self.g.update, 1 / 60.0)
+        pyg.clock.schedule_interval(self.g.update, 1 / 120.0)
         self.app = pyg.app
         self.app.run()
 

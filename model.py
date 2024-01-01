@@ -4,6 +4,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 import os
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 class Linear_QNet(nn.Module):
 
@@ -29,6 +31,7 @@ class Linear_QNet(nn.Module):
 class QTrainer:
 
     def __init__(self, model, lr, gamma):
+        torch.cuda.set_device(0)
         self.lr = lr
         self.gamma = gamma
         self.model = model
@@ -36,10 +39,10 @@ class QTrainer:
         self.criterion = nn.MSELoss()
 
     def train_step(self, state, action, reward, next_state, done):
-        state = torch.tensor(state, dtype=torch.float)
-        next_state = torch.tensor(next_state, dtype=torch.float)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float)
+        state = torch.tensor(state, dtype=torch.float, device='cuda')
+        next_state = torch.tensor(next_state, dtype=torch.float, device='cuda')
+        action = torch.tensor(action, dtype=torch.long, device='cuda')
+        reward = torch.tensor(reward, dtype=torch.float, device='cuda')
 
         if len(state.shape) == 1:
             # (1, x)
